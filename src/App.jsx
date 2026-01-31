@@ -61,7 +61,7 @@ import {
   writeBatch 
 } from 'firebase/firestore';
 
-// --- Firebase Configuration (Updated with your keys) ---
+// --- Firebase Configuration ---
 const firebaseConfig = {
   apiKey: "AIzaSyAA4mTxBvsy71nE46Qj1UDYjDOU76O1aes",
   authDomain: "fleetx-wg.firebaseapp.com",
@@ -82,6 +82,7 @@ const appId = 'fleetx_v1';
 
 // --- Utility Functions ---
 const formatCurrency = (amount) => {
+  if (amount === undefined || amount === null) return 'Rs 0';
   return new Intl.NumberFormat('en-PK', {
     style: 'currency',
     currency: 'PKR',
@@ -105,6 +106,7 @@ export default function FleetXApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginCreds, setLoginCreds] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
+  const [firebaseError, setFirebaseError] = useState(''); // New state for Firebase errors
 
   const [user, setUser] = useState(null);
   const [activeView, setActiveView] = useState('dashboard');
@@ -123,44 +125,54 @@ export default function FleetXApp() {
 
   // --- Auth & Data Listeners ---
   useEffect(() => {
-    // Session Check
     const session = sessionStorage.getItem('fleetx_auth');
     if (session === 'true') setIsAuthenticated(true);
 
     const initAuth = async () => {
-      // Direct Anonymous sign in for simplicity in this version
-      // or use your specific auth logic if needed
-      await signInAnonymously(auth);
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("Firebase Auth Error:", error);
+        if (error.code === 'auth/configuration-not-found' || error.code === 'auth/admin-restricted-operation') {
+          setFirebaseError('Please enable "Anonymous" sign-in in Firebase Console > Authentication.');
+        } else {
+          setFirebaseError(`Database Connection Error: ${error.message}`);
+        }
+      }
     };
     initAuth();
     
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (!currentUser) setLoading(false);
+      if (!currentUser && !firebaseError) {
+         // Still loading or not signed in
+      } else {
+         setLoading(false);
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [firebaseError]);
 
   useEffect(() => {
     if (!user) return;
 
-    // IMPORTANT: Using 'fleetx_v1' as static appId for consistency across your devices
+    // IMPORTANT: Using 'fleetx_v1' as static appId for consistency
     const unsubAccounts = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'accounts')), (snapshot) => {
       setAccounts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (error) => console.error("Accounts Sync Error:", error));
 
     const unsubTrans = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'transactions'), orderBy('createdAt', 'desc')), (snapshot) => {
       setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (error) => console.error("Trans Sync Error:", error));
 
     const unsubInv = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'inventory')), (snapshot) => {
       setInventory(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (error) => console.error("Inventory Sync Error:", error));
 
     const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snapshot) => {
       setOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
-    });
+    }, (error) => console.error("Orders Sync Error:", error));
 
     return () => { unsubAccounts(); unsubTrans(); unsubInv(); unsubOrders(); };
   }, [user]);
@@ -233,7 +245,7 @@ export default function FleetXApp() {
 
     let generalExpense = 0;
     transactions.filter(t => t.type === 'General' || t.type === 'Payment').forEach(t => {
-       t.entries.forEach(e => {
+       t.entries?.forEach(e => {
          const acc = accounts.find(a => a.id === e.accountId);
          if(acc && acc.type === 'Expense' && e.type === 'debit') generalExpense += Number(e.amount);
        });
@@ -242,15 +254,74 @@ export default function FleetXApp() {
     return { income: totalIncome, expense: totalExpense, profit: closedTripProfit - generalExpense };
   }, [transactions, accounts, accountBalances]);
 
-  // --- Sub Components ---
+  // --- LOGIN SCREEN ---
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
+        <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
+              <Truck size={32} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">FleetX</h1>
+            <p className="text-slate-500 text-sm">Secure Login Panel</p>
+          </div>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">Username</label>
+              <input 
+                type="text" 
+                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Enter username"
+                value={loginCreds.username}
+                onChange={(e) => setLoginCreds({...loginCreds, username: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
+              <input 
+                type="password" 
+                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Enter password"
+                value={loginCreds.password}
+                onChange={(e) => setLoginCreds({...loginCreds, password: e.target.value})}
+              />
+            </div>
+            
+            {loginError && (
+              <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2">
+                <AlertCircle size={16} /> {loginError}
+              </div>
+            )}
+            
+            <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
+              Access Dashboard
+            </button>
+          </form>
+          <div className="mt-6 text-center text-xs text-slate-400">
+            Developer - Waqas Gilani - ERP - FleetX
+          </div>
+          {firebaseError && (
+            <div className="mt-4 p-3 bg-orange-50 text-orange-600 text-xs rounded border border-orange-200 text-center">
+              System Check: {firebaseError}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Views ---
 
   const Dashboard = () => {
     const receivables = getCategoryBalance('Client');
     const payables = Math.abs(accounts.filter(a => a.category === 'Vendor').reduce((sum, acc) => sum + (accountBalances[acc.id] || 0), 0));
+    
     const cashInHand = accounts.filter(a => a.category === 'Cash').reduce((sum, acc) => sum + (accountBalances[acc.id] || 0), 0);
     const pendingOrders = orders.filter(o => o.status === 'Pending').length;
     const openTripsCount = transactions.filter(t => t.type === 'Trip' && t.status === 'Open').length;
-    
+
     const vehiclesInLahore = accounts.filter(a => a.category === 'Vehicle' && (!a.currentLocation || a.currentLocation === 'Lahore')).length;
     const vehiclesOut = accounts.filter(a => a.category === 'Vehicle' && a.currentLocation && a.currentLocation !== 'Lahore');
     const bankAccounts = accounts.filter(a => a.category === 'Bank');
@@ -261,9 +332,17 @@ export default function FleetXApp() {
     if (dashboardFilter) {
       let listData = [];
       let title = '';
-      if (dashboardFilter === 'receivables') { listData = receivableAccounts; title = 'Receivables Detail'; }
-      else if (dashboardFilter === 'payables') { listData = payableAccounts; title = 'Payables Detail'; }
-      else if (dashboardFilter === 'outstation') { listData = vehiclesOut; title = 'Fleet Outstation Details'; }
+      
+      if (dashboardFilter === 'receivables') {
+        listData = receivableAccounts;
+        title = 'Receivables Detail';
+      } else if (dashboardFilter === 'payables') {
+        listData = payableAccounts;
+        title = 'Payables Detail';
+      } else if (dashboardFilter === 'outstation') {
+        listData = vehiclesOut;
+        title = 'Fleet Outstation Details';
+      }
 
       return (
         <div className="animate-fade-in space-y-4">
@@ -279,15 +358,31 @@ export default function FleetXApp() {
                   return (
                     <div key={acc.id} className="p-4 hover:bg-slate-50">
                       <div className="flex justify-between items-start">
-                        <div><span className="font-bold text-slate-800 block">{acc.name}</span><span className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={12}/> Current: {acc.currentLocation}</span></div>
+                        <div>
+                          <span className="font-bold text-slate-800 block">{acc.name}</span>
+                          <span className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={12}/> Current: {acc.currentLocation}</span>
+                        </div>
                         <div className="text-right text-xs">
-                          {activeTrip ? (<><span className="block text-emerald-600 font-bold">On Active Trip</span><span className="block text-slate-500">Client: {clientName}</span><span className="block text-slate-400">{activeTrip.route}</span></>) : (<span className="text-orange-500 font-bold">Idle / Completed</span>)}
+                          {activeTrip ? (
+                            <>
+                              <span className="block text-emerald-600 font-bold">On Active Trip</span>
+                              <span className="block text-slate-500">Client: {clientName}</span>
+                              <span className="block text-slate-400">{activeTrip.route}</span>
+                            </>
+                          ) : (
+                            <span className="text-orange-500 font-bold">Idle / Completed</span>
+                          )}
                         </div>
                       </div>
                     </div>
                   );
                 } else {
-                  return (<div key={acc.id} className="p-4 flex justify-between items-center"><span className="font-medium text-slate-700">{acc.name}</span><span className={`font-mono font-bold ${accountBalances[acc.id] < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(Math.abs(accountBalances[acc.id]))}</span></div>);
+                  return (
+                    <div key={acc.id} className="p-4 flex justify-between items-center">
+                      <span className="font-medium text-slate-700">{acc.name}</span>
+                      <span className={`font-mono font-bold ${accountBalances[acc.id] < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(Math.abs(accountBalances[acc.id]))}</span>
+                    </div>
+                  );
                 }
               })}
               {listData.length === 0 && <div className="p-8 text-center text-slate-400">No records found.</div>}
@@ -299,20 +394,71 @@ export default function FleetXApp() {
 
     return (
       <div className="space-y-6 animate-fade-in">
+        {firebaseError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
+             <AlertCircle size={24} />
+             <div>
+               <p className="font-bold">Database Connection Error</p>
+               <p className="text-sm">{firebaseError}</p>
+             </div>
+          </div>
+        )}
+
+        {/* Row 1: Fleet & Trips */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-           <div className="bg-slate-800 p-4 rounded-2xl text-white shadow-md"><p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet in Lahore</p><h3 className="text-2xl font-bold flex items-center gap-2"><MapPin size={20} className="text-red-400" /> {vehiclesInLahore}</h3></div>
-           <button onClick={() => setDashboardFilter('outstation')} className="bg-slate-700 p-4 rounded-2xl text-white shadow-md text-left hover:bg-slate-600 transition-colors"><p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet Outstation</p><h3 className="text-2xl font-bold flex items-center gap-2"><Truck size={20} className="text-blue-400" /> {vehiclesOut.length}</h3><p className="text-[10px] text-slate-400 mt-1">Click for Details</p></button>
-           <button onClick={() => setActiveView('trip-manager')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-blue-300 hover:shadow-md transition-all"><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Active Trips</p><h3 className="text-2xl font-bold mt-1 text-slate-800">{openTripsCount}</h3></button>
-           <button onClick={() => setActiveView('reports')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-emerald-300 hover:shadow-md transition-all"><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Net Profit</p><h3 className={`text-2xl font-bold mt-1 ${pnlStats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(pnlStats.profit)}</h3></button>
+           <div className="bg-slate-800 p-4 rounded-2xl text-white shadow-md">
+              <p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet in Lahore</p>
+              <h3 className="text-2xl font-bold flex items-center gap-2"><MapPin size={20} className="text-red-400" /> {vehiclesInLahore}</h3>
+           </div>
+           <button onClick={() => setDashboardFilter('outstation')} className="bg-slate-700 p-4 rounded-2xl text-white shadow-md text-left hover:bg-slate-600 transition-colors">
+              <p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet Outstation</p>
+              <h3 className="text-2xl font-bold flex items-center gap-2"><Truck size={20} className="text-blue-400" /> {vehiclesOut.length}</h3>
+              <p className="text-[10px] text-slate-400 mt-1">Click for Details</p>
+           </button>
+           <button onClick={() => setActiveView('trip-manager')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-blue-300 hover:shadow-md transition-all">
+             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Active Trips</p>
+             <h3 className="text-2xl font-bold mt-1 text-slate-800">{openTripsCount}</h3>
+           </button>
+           <button onClick={() => setActiveView('reports')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-emerald-300 hover:shadow-md transition-all">
+             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Net Profit</p>
+             <h3 className={`text-2xl font-bold mt-1 ${pnlStats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(pnlStats.profit)}</h3>
+           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button onClick={() => setDashboardFilter('receivables')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-5 rounded-2xl text-white shadow-lg text-left hover:scale-[1.02] transition-transform"><p className="text-blue-100 text-xs font-medium uppercase tracking-wider">Receivables</p><h3 className="text-2xl font-bold mt-1">{formatCurrency(receivables)}</h3><p className="text-[10px] text-blue-200 mt-2 flex items-center gap-1">Click to view list <ArrowRight size={10}/></p></button>
-          <button onClick={() => setActiveView('order-manager')} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-orange-300 hover:shadow-md transition-all group"><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Pending Orders</p><h3 className="text-2xl font-bold mt-1 text-orange-600">{pendingOrders}</h3><p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 group-hover:text-orange-500">Need CRO/Action <ArrowRight size={10}/></p></button>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm"><div className="flex justify-between items-start"><div><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Cash In Hand</p><h3 className="text-2xl font-bold mt-1 text-emerald-600">{formatCurrency(cashInHand)}</h3></div><Wallet className="text-emerald-100" size={24} /></div></div>
+
+        {/* Row 2: Financials (Updated for Payables) */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <button onClick={() => setDashboardFilter('receivables')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-5 rounded-2xl text-white shadow-lg text-left hover:scale-[1.02] transition-transform">
+            <p className="text-blue-100 text-xs font-medium uppercase tracking-wider">Receivables</p>
+            <h3 className="text-2xl font-bold mt-1">{formatCurrency(receivables)}</h3>
+            <p className="text-[10px] text-blue-200 mt-2 flex items-center gap-1">Click to view list <ArrowRight size={10}/></p>
+          </button>
+          
+          <button onClick={() => setDashboardFilter('payables')} className="bg-white p-5 rounded-2xl border border-red-200 shadow-sm text-left hover:border-red-400 hover:shadow-md transition-all group">
+             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Payables (Vendors)</p>
+             <h3 className="text-2xl font-bold mt-1 text-red-600">{formatCurrency(payables)}</h3>
+             <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 group-hover:text-red-500">Click to view list <ArrowRight size={10}/></p>
+          </button>
+
+          <button onClick={() => setActiveView('order-manager')} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-orange-300 hover:shadow-md transition-all group">
+             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Pending Orders</p>
+             <h3 className="text-2xl font-bold mt-1 text-orange-600">{pendingOrders}</h3>
+             <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 group-hover:text-orange-500">Need CRO/Action <ArrowRight size={10}/></p>
+          </button>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-start"><div><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Cash In Hand</p><h3 className="text-2xl font-bold mt-1 text-emerald-600">{formatCurrency(cashInHand)}</h3></div><Wallet className="text-emerald-100" size={24} /></div>
+          </div>
         </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-fit"><div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2"><CreditCard size={18} className="text-slate-500"/><h3 className="font-bold text-slate-800">Bank Accounts</h3></div><div className="divide-y divide-slate-100">{bankAccounts.map(acc => (<div key={acc.id} className="p-4 flex justify-between items-center hover:bg-slate-50"><span className="text-sm font-medium text-slate-700">{acc.name}</span><span className="font-mono font-bold text-slate-800 text-sm">{formatCurrency(accountBalances[acc.id] || 0)}</span></div>))}</div></div>
-          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"><div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800">Recent Activity</h3><button onClick={() => setActiveView('trip-manager')} className="text-sm text-blue-600 hover:underline">View All Trips</button></div><div className="divide-y divide-slate-100">{transactions.slice(0, 5).map(t => (<div key={t.id} className="p-4 hover:bg-slate-50 transition-colors"><div className="flex justify-between items-start"><div><div className="flex items-center gap-2">{t.type === 'Payment' ? <Banknote size={16} className="text-slate-400"/> : null}<p className="font-semibold text-slate-800">{t.description}</p>{t.status && (<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{t.status.toUpperCase()}</span>)}</div><p className="text-xs text-slate-500">{formatDate(t.createdAt)} • Ref: {t.id.slice(0, 4)}</p></div><span className="font-mono font-medium text-slate-700">{formatCurrency(t.totalAmount || t.entries?.[0]?.amount)}</span></div></div>))}</div></div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-fit">
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2"><CreditCard size={18} className="text-slate-500"/><h3 className="font-bold text-slate-800">Bank Accounts</h3></div>
+            <div className="divide-y divide-slate-100">{bankAccounts.map(acc => (<div key={acc.id} className="p-4 flex justify-between items-center hover:bg-slate-50"><span className="text-sm font-medium text-slate-700">{acc.name}</span><span className="font-mono font-bold text-slate-800 text-sm">{formatCurrency(accountBalances[acc.id] || 0)}</span></div>))}</div>
+          </div>
+          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800">Recent Activity</h3><button onClick={() => setActiveView('trip-manager')} className="text-sm text-blue-600 hover:underline">View All Trips</button></div>
+            <div className="divide-y divide-slate-100">{transactions.slice(0, 5).map(t => (<div key={t.id} className="p-4 hover:bg-slate-50 transition-colors"><div className="flex justify-between items-start"><div><div className="flex items-center gap-2">{t.type === 'Payment' ? <Banknote size={16} className="text-slate-400"/> : null}<p className="font-semibold text-slate-800">{t.description}</p>{t.status && (<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{t.status.toUpperCase()}</span>)}</div><p className="text-xs text-slate-500">{formatDate(t.createdAt)} • Ref: {t.id.slice(0, 4)}</p></div><span className="font-mono font-medium text-slate-700">{formatCurrency(t.totalAmount || t.entries?.[0]?.amount)}</span></div></div>))}</div>
+          </div>
         </div>
       </div>
     );
@@ -323,9 +469,11 @@ export default function FleetXApp() {
     const [editingId, setEditingId] = useState(null);
     const [newOrder, setNewOrder] = useState({
       clientId: '', locationFrom: 'Lahore', locationTo: 'Karachi', weight: '',
-      singleVehicles: 0, doubleVehicles: 0, rateSingle: '', rateDouble: '',
-      weightSingle: '', weightDouble: '', containerSize: '20ft', type: 'Local', 
-      croNo: '', status: 'Pending', invoiceStatus: 'Unbilled',
+      singleVehicles: 0, doubleVehicles: 0,
+      rateSingle: '', rateDouble: '',
+      weightSingle: '', weightDouble: '',
+      containerSize: '20ft', type: 'Local', croNo: '', status: 'Pending',
+      invoiceStatus: 'Unbilled',
       fulfilledSingle: 0, fulfilledDouble: 0
     });
 
