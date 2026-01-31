@@ -106,7 +106,7 @@ export default function FleetXApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginCreds, setLoginCreds] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
-  const [firebaseError, setFirebaseError] = useState('');
+  const [firebaseError, setFirebaseError] = useState(''); // New state for Firebase errors
 
   const [user, setUser] = useState(null);
   const [activeView, setActiveView] = useState('dashboard');
@@ -145,7 +145,7 @@ export default function FleetXApp() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (!currentUser && !firebaseError) {
-         // Still loading
+         // Still loading or not signed in
       } else {
          setLoading(false);
       }
@@ -156,22 +156,23 @@ export default function FleetXApp() {
   useEffect(() => {
     if (!user) return;
 
+    // IMPORTANT: Using 'fleetx_v1' as static appId for consistency
     const unsubAccounts = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'accounts')), (snapshot) => {
       setAccounts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (error) => console.error("Accounts Sync Error:", error));
 
     const unsubTrans = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'transactions'), orderBy('createdAt', 'desc')), (snapshot) => {
       setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (error) => console.error("Trans Sync Error:", error));
 
     const unsubInv = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'inventory')), (snapshot) => {
       setInventory(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (error) => console.error("Inventory Sync Error:", error));
 
     const unsubOrders = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'orders'), orderBy('createdAt', 'desc')), (snapshot) => {
       setOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
-    });
+    }, (error) => console.error("Orders Sync Error:", error));
 
     return () => { unsubAccounts(); unsubTrans(); unsubInv(); unsubOrders(); };
   }, [user]);
@@ -739,7 +740,52 @@ export default function FleetXApp() {
              <div className="flex justify-between items-center mb-3"><div><h4 className="font-bold text-blue-800">Trip Status</h4><p className="text-sm text-blue-600">Current: <span className="font-bold">{editingTrip.status}</span></p></div>{editingTrip.status === 'Open' && (<button onClick={() => handleCloseTrip(editingTrip)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700">Complete & Update Location</button>)}</div>
              <div className="flex gap-2 items-center"><input type="text" placeholder="Edit Bilty No" className="p-2 border border-blue-200 rounded text-sm w-full" value={editingTrip.biltyNo} onChange={(e) => setEditingTrip({...editingTrip, biltyNo: e.target.value})}/><button onClick={handleUpdateBilty} className="bg-blue-600 text-white px-3 py-2 rounded text-sm font-bold">Save Bilty</button></div>
           </div>
-          <div><h4 className="font-bold text-slate-800 mb-3">Trip Expenses</h4><div className="space-y-2 mb-4">{editingTrip.expenseDetails?.map((exp, idx) => (<div key={idx} className="flex justify-between p-3 bg-slate-50 rounded-lg border border-slate-100"><span className="font-medium text-slate-700">{exp.name}</span><span className="font-mono text-slate-600">{formatCurrency(exp.amount)}</span></div>))}</div><p className="text-sm font-bold text-slate-700 mb-2">Add New Expense:</p><form onSubmit={async (e) => { e.preventDefault(); const name = e.target.expName.value; const amount = Number(e.target.expAmount.value); if(!name || !amount) return; const newExpenses = [...(editingTrip.expenseDetails || []), { name, amount }]; const newEntries = [...editingTrip.entries]; newEntries.push({ accountId: getAccountId('Trip Expense'), type: 'debit', amount }); newEntries.push({ accountId: getAccountId('Cash'), type: 'credit', amount }); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', editingTrip.id), { expenseDetails: newExpenses, entries: newEntries }); e.target.reset(); setEditingTrip({ ...editingTrip, expenseDetails: newExpenses, entries: newEntries }); }} className="flex gap-2"><input name="expName" type="text" placeholder="Expense Name" className="flex-1 p-2 border border-slate-300 rounded-lg" required /><input name="expAmount" type="number" placeholder="Amount" className="w-32 p-2 border border-slate-300 rounded-lg" required /><button type="submit" className="bg-slate-800 text-white px-4 py-2 rounded-lg font-medium">Add</button></form></div></div></div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+             <h4 className="font-bold text-slate-800 mb-3">Add Trip Expense</h4>
+             <form onSubmit={async (e) => {
+                 e.preventDefault();
+                 const name = e.target.expName.value;
+                 const amount = Number(e.target.expAmount.value);
+                 if(!name || !amount) return;
+
+                 try {
+                     const tripExpId = getAccountId('Trip Expense');
+                     const cashId = getAccountId('Cash');
+                     if (!tripExpId || !cashId) return alert("System Accounts (Trip Expense/Cash) missing.");
+
+                     const newExpenses = [...(editingTrip.expenseDetails || []), { name, amount }];
+                     const currentEntries = editingTrip.entries || [];
+                     const newEntries = [...currentEntries];
+                     
+                     newEntries.push({ accountId: tripExpId, type: 'debit', amount });
+                     newEntries.push({ accountId: cashId, type: 'credit', amount });
+
+                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', editingTrip.id), { 
+                         expenseDetails: newExpenses, 
+                         entries: newEntries 
+                     });
+
+                     e.target.reset();
+                     setEditingTrip({ ...editingTrip, expenseDetails: newExpenses, entries: newEntries });
+                     alert("Expense Added!");
+                 } catch (err) {
+                     alert("Error: " + err.message);
+                 }
+             }} className="flex gap-2">
+               <input name="expName" type="text" placeholder="Expense Name" className="flex-1 p-2 border border-slate-300 rounded-lg text-sm" required />
+               <input name="expAmount" type="number" placeholder="Amount" className="w-24 p-2 border border-slate-300 rounded-lg text-sm" required />
+               <button type="submit" className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium">Add</button>
+             </form>
+             <div className="mt-3 space-y-2">
+               {editingTrip.expenseDetails?.map((exp, idx) => (
+                 <div key={idx} className="flex justify-between p-2 bg-slate-50 rounded text-sm border border-slate-100">
+                    <span className="text-slate-700">{exp.name}</span>
+                    <span className="font-mono text-slate-600">{formatCurrency(exp.amount)}</span>
+                 </div>
+               ))}
+             </div>
+          </div>
+        </div></div>
       );
     }
 
@@ -766,7 +812,7 @@ export default function FleetXApp() {
     const [selectedClient, setSelectedClient] = useState('');
     const [selectedOrderIds, setSelectedOrderIds] = useState([]);
     const [generated, setGenerated] = useState(false);
-    const clientTrips = useMemo(() => { if (!selectedClient || !dateRange.start || !dateRange.end) return []; const start = new Date(dateRange.start); const end = new Date(dateRange.end); end.setHours(23, 59, 59); return transactions.filter(t => { if (t.type !== 'Trip') return false; const tDate = t.createdAt.seconds ? new Date(t.createdAt.seconds * 1000) : new Date(t.userDate); const isClient = t.entries.some(e => e.accountId === selectedClient && e.type === 'debit'); return isClient && tDate >= start && tDate <= end; }); }, [selectedClient, dateRange, transactions]);
+    const clientTrips = useMemo(() => { if (!selectedClient) return []; return transactions.filter(t => { if (t.type !== 'Trip') return false; const isClient = t.entries.some(e => e.accountId === selectedClient && e.type === 'debit'); return isClient; }); }, [selectedClient, transactions]);
     const totalBill = clientTrips.reduce((sum, t) => sum + Number(t.totalAmount) + Number(t.detentionAmount || 0), 0);
     const clientName = accounts.find(a => a.id === selectedClient)?.name || '';
     if (generated) {
@@ -782,7 +828,7 @@ export default function FleetXApp() {
         </div>
       );
     }
-    return (<div className="max-w-xl mx-auto space-y-6 animate-fade-in"><div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm"><h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><FileText className="text-blue-600"/> Bill / Invoice Generator</h3><div className="space-y-4"><div><label className="block text-sm font-bold text-slate-700 mb-1">Select Client</label><select className="w-full p-3 border border-slate-200 rounded-xl" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}><option value="">Choose Party...</option>{accounts.filter(a => a.category === 'Client').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-bold text-slate-700 mb-1">From Date</label><input type="date" className="w-full p-3 border border-slate-200 rounded-xl" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} /></div><div><label className="block text-sm font-bold text-slate-700 mb-1">To Date</label><input type="date" className="w-full p-3 border border-slate-200 rounded-xl" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} /></div></div><div className="pt-4"><button onClick={() => { if(selectedClient && dateRange.start && dateRange.end) setGenerated(true); else alert('Please select client and date range'); }} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg">Generate Bill</button></div></div></div></div>);
+    return (<div className="max-w-xl mx-auto space-y-6 animate-fade-in"><div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm"><h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><FileText className="text-blue-600"/> Bill / Invoice Generator</h3><div className="space-y-4"><div><label className="block text-sm font-bold text-slate-700 mb-1">Select Client</label><select className="w-full p-3 border border-slate-200 rounded-xl" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}><option value="">Choose Party...</option>{accounts.filter(a => a.category === 'Client').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div><div className="pt-4"><button onClick={() => { if(selectedClient) setGenerated(true); else alert('Please select client'); }} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg">Generate Bill</button></div></div></div></div>);
   };
 
   // Re-Use other components
