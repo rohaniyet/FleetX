@@ -32,7 +32,6 @@ import {
   Landmark, 
   Anchor, 
   MapPin,
-  Map,
   Lock,
   LogOut
 } from 'lucide-react';
@@ -58,8 +57,7 @@ import {
   updateDoc, 
   deleteDoc, 
   increment, 
-  writeBatch,
-  getDoc
+  writeBatch 
 } from 'firebase/firestore';
 
 // --- Firebase Configuration ---
@@ -78,7 +76,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Data Path ID (Fixed to prevent data loss)
+// Data Path ID (Data yahan save hoga)
 const appId = 'fleetx_v1';
 
 // --- Utility Functions ---
@@ -134,11 +132,7 @@ export default function FleetXApp() {
         await signInAnonymously(auth);
       } catch (error) {
         console.error("Firebase Auth Error:", error);
-        if (error.code === 'auth/configuration-not-found' || error.code === 'auth/admin-restricted-operation') {
-          setFirebaseError('Please enable "Anonymous" sign-in in Firebase Console > Authentication.');
-        } else {
-          setFirebaseError(`Database Connection Error: ${error.message}`);
-        }
+        setFirebaseError(error.message);
       }
     };
     initAuth();
@@ -178,7 +172,7 @@ export default function FleetXApp() {
     return () => { unsubAccounts(); unsubTrans(); unsubInv(); unsubOrders(); };
   }, [user]);
 
-  // Sync Editing Trip with Live Data (Fixes expense not showing issue)
+  // Sync Editing Trip with Live Data
   useEffect(() => {
     if (editingTrip) {
       const liveTrip = transactions.find(t => t.id === editingTrip.id);
@@ -186,7 +180,7 @@ export default function FleetXApp() {
         setEditingTrip(liveTrip);
       }
     }
-  }, [transactions]); // Sync whenever transactions update
+  }, [transactions]); 
 
   // --- Login Handler ---
   const handleLogin = (e) => {
@@ -205,36 +199,6 @@ export default function FleetXApp() {
     sessionStorage.removeItem('fleetx_auth');
     setLoginCreds({ username: '', password: '' });
   };
-
-  // --- Helper: Auto Create System Accounts ---
-  const ensureSystemAccounts = async () => {
-    const required = [
-      { name: 'Vehicle Income', category: 'Income', type: 'Income' },
-      { name: 'Trip Expense', category: 'Expense', type: 'Expense' },
-      { name: 'Inventory Profit', category: 'Income', type: 'Income' },
-      { name: 'Store Inventory', category: 'Asset', type: 'Asset' },
-      { name: 'Cash', category: 'Cash', type: 'Asset' },
-      { name: 'Income', category: 'Income', type: 'Income' } // General Income
-    ];
-    
-    for (let req of required) {
-      const exists = accounts.find(a => a.name.toLowerCase() === req.name.toLowerCase());
-      if (!exists && user) {
-         try {
-           await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), { 
-             ...req, 
-             createdAt: serverTimestamp() 
-           });
-         } catch (e) {
-           console.error("Error creating system account:", e);
-         }
-      }
-    }
-  };
-  
-  useEffect(() => {
-    if(accounts.length > 0 && user) ensureSystemAccounts();
-  }, [accounts.length, user]);
 
   // --- Calculations ---
   const accountBalances = useMemo(() => {
@@ -295,226 +259,96 @@ export default function FleetXApp() {
     return { income: totalIncome, expense: totalExpense, profit: closedTripProfit - generalExpense };
   }, [transactions, accounts, accountBalances]);
 
-  // --- LOGIN SCREEN ---
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
-        <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
-          <div className="flex flex-col items-center mb-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
-              <Truck size={32} className="text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">FleetX</h1>
-            <p className="text-slate-500 text-sm">Secure Login Panel</p>
-          </div>
-          
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Username</label>
-              <input 
-                type="text" 
-                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="Enter username"
-                value={loginCreds.username}
-                onChange={(e) => setLoginCreds({...loginCreds, username: e.target.value})}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
-              <input 
-                type="password" 
-                className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="Enter password"
-                value={loginCreds.password}
-                onChange={(e) => setLoginCreds({...loginCreds, password: e.target.value})}
-              />
-            </div>
-            
-            {loginError && (
-              <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-center gap-2">
-                <AlertCircle size={16} /> {loginError}
-              </div>
-            )}
-            
-            <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
-              Access Dashboard
-            </button>
-          </form>
-          <div className="mt-6 text-center text-xs text-slate-400">
-            Developer - Waqas Gilani - ERP - FleetX
-          </div>
-          {firebaseError && (
-            <div className="mt-4 p-3 bg-orange-50 text-orange-600 text-xs rounded border border-orange-200 text-center">
-              System Check: {firebaseError}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // --- SUB COMPONENTS DEFINITIONS ---
+  
+  // 1. SIDEBAR
+  const Sidebar = ({ mobile }) => (
+    <div className={`bg-slate-900 text-white h-full flex flex-col ${mobile ? 'w-full' : 'w-64'} print:hidden`}>
+      <div className="p-6 border-b border-slate-800"><div className="flex items-center gap-3 mb-1"><div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><Truck size={18}/></div><span className="font-bold text-xl tracking-tight">FleetX</span></div><p className="text-xs text-slate-500 pl-11">Azam Afridi Goods Transport</p></div>
+      <nav className="flex-1 p-4 space-y-1">
+        {[
+          { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+          { id: 'order-manager', icon: ClipboardList, label: 'Order Manager' },
+          { id: 'trip-manager', icon: AlertCircle, label: 'Trip Manager' },
+          { id: 'payments', icon: Banknote, label: 'Payments' },
+          { id: 'billing', icon: FileText, label: 'Billing / Invoice' },
+          { id: 'accounts', icon: Users, label: 'Accounts' },
+          { id: 'store', icon: Package, label: 'Store/Inventory' },
+          { id: 'reports', icon: TrendingUp, label: 'Accounting Reports' },
+        ].map(item => (
+          <button key={item.id} onClick={() => { setActiveView(item.id); if(mobile) setIsMobileMenuOpen(false); setDashboardFilter(null); }} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${activeView === item.id ? 'bg-blue-600 shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><item.icon size={18} /> <span className="font-medium text-sm">{item.label}</span></button>
+        ))}
+      </nav>
+      {isAuthenticated && (
+        <button onClick={handleLogout} className="m-4 flex items-center gap-3 p-3 rounded-xl transition-all text-red-400 hover:bg-red-900/30 hover:text-red-300">
+          <LogOut size={18} /> <span className="font-medium text-sm">Logout</span>
+        </button>
+      )}
+    </div>
+  );
 
-  // --- Views ---
-
+  // 2. DASHBOARD
   const Dashboard = () => {
     const receivables = getCategoryBalance('Client');
     const payables = Math.abs(accounts.filter(a => a.category === 'Vendor').reduce((sum, acc) => sum + (accountBalances[acc.id] || 0), 0));
-    
     const cashInHand = accounts.filter(a => a.category === 'Cash').reduce((sum, acc) => sum + (accountBalances[acc.id] || 0), 0);
     const pendingOrders = orders.filter(o => o.status === 'Pending').length;
     const openTripsCount = transactions.filter(t => t.type === 'Trip' && t.status === 'Open').length;
-
+    
     const vehiclesInLahore = accounts.filter(a => a.category === 'Vehicle' && (!a.currentLocation || a.currentLocation === 'Lahore')).length;
     const vehiclesOut = accounts.filter(a => a.category === 'Vehicle' && a.currentLocation && a.currentLocation !== 'Lahore');
     const bankAccounts = accounts.filter(a => a.category === 'Bank');
-    
     const receivableAccounts = accounts.filter(a => a.category === 'Client' && accountBalances[a.id] > 0);
     const payableAccounts = accounts.filter(a => a.category === 'Vendor' && accountBalances[a.id] < 0);
 
     if (dashboardFilter) {
       let listData = [];
       let title = '';
-      
-      if (dashboardFilter === 'receivables') {
-        listData = receivableAccounts;
-        title = 'Receivables Detail';
-      } else if (dashboardFilter === 'payables') {
-        listData = payableAccounts;
-        title = 'Payables Detail';
-      } else if (dashboardFilter === 'outstation') {
-        listData = vehiclesOut;
-        title = 'Fleet Outstation Details';
-      }
+      if (dashboardFilter === 'receivables') { listData = receivableAccounts; title = 'Receivables Detail'; }
+      else if (dashboardFilter === 'payables') { listData = payableAccounts; title = 'Payables Detail'; }
+      else if (dashboardFilter === 'outstation') { listData = vehiclesOut; title = 'Fleet Outstation Details'; }
 
       return (
         <div className="animate-fade-in space-y-4">
           <button onClick={() => setDashboardFilter(null)} className="flex items-center text-slate-500 hover:text-slate-800"><ArrowRight className="rotate-180 mr-1" size={16}/> Back to Dashboard</button>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-lg">{title}</div>
-            <div className="divide-y divide-slate-100">
-              {listData.map(acc => {
-                if (dashboardFilter === 'outstation') {
-                  const activeTrip = transactions.find(t => t.type === 'Trip' && t.status === 'Open' && t.vehicleId === acc.id);
-                  const order = activeTrip ? orders.find(o => o.id === activeTrip.orderId) : null;
-                  const clientName = order ? accounts.find(a => a.id === order.clientId)?.name : 'N/A';
-                  return (
-                    <div key={acc.id} className="p-4 hover:bg-slate-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="font-bold text-slate-800 block">{acc.name}</span>
-                          <span className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={12}/> Current: {acc.currentLocation}</span>
-                        </div>
-                        <div className="text-right text-xs">
-                          {activeTrip ? (
-                            <>
-                              <span className="block text-emerald-600 font-bold">On Active Trip</span>
-                              <span className="block text-slate-500">Client: {clientName}</span>
-                              <span className="block text-slate-400">{activeTrip.route}</span>
-                            </>
-                          ) : (
-                            <span className="text-orange-500 font-bold">Idle / Completed</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                } else {
-                  return (
-                    <div key={acc.id} className="p-4 flex justify-between items-center">
-                      <span className="font-medium text-slate-700">{acc.name}</span>
-                      <span className={`font-mono font-bold ${accountBalances[acc.id] < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(Math.abs(accountBalances[acc.id]))}</span>
-                    </div>
-                  );
-                }
-              })}
-              {listData.length === 0 && <div className="p-8 text-center text-slate-400">No records found.</div>}
-            </div>
+            <div className="divide-y divide-slate-100">{listData.map(acc => { if(dashboardFilter==='outstation'){ const activeTrip=transactions.find(t=>t.type==='Trip'&&t.status==='Open'&&t.vehicleId===acc.id); const order=activeTrip?orders.find(o=>o.id===activeTrip.orderId):null; const clientName=order?accounts.find(a=>a.id===order.clientId)?.name:'N/A'; return (<div key={acc.id} className="p-4 hover:bg-slate-50"><div className="flex justify-between items-start"><div><span className="font-bold text-slate-800 block">{acc.name}</span><span className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={12}/> Current: {acc.currentLocation}</span></div><div className="text-right text-xs">{activeTrip?(<><span className="block text-emerald-600 font-bold">On Active Trip</span><span className="block text-slate-500">Client: {clientName}</span><span className="block text-slate-400">{activeTrip.route}</span></>):(<span className="text-orange-500 font-bold">Idle / Completed</span>)}</div></div></div>); } else { return (<div key={acc.id} className="p-4 flex justify-between items-center"><span className="font-medium text-slate-700">{acc.name}</span><span className={`font-mono font-bold ${accountBalances[acc.id] < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(Math.abs(accountBalances[acc.id]))}</span></div>); } })}</div>
           </div>
         </div>
       );
     }
-
     return (
       <div className="space-y-6 animate-fade-in">
-        {firebaseError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
-             <AlertCircle size={24} />
-             <div>
-               <p className="font-bold">Database Connection Error</p>
-               <p className="text-sm">{firebaseError}</p>
-             </div>
-          </div>
-        )}
-
-        {/* Row 1: Fleet & Trips */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-           <div className="bg-slate-800 p-4 rounded-2xl text-white shadow-md">
-              <p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet in Lahore</p>
-              <h3 className="text-2xl font-bold flex items-center gap-2"><MapPin size={20} className="text-red-400" /> {vehiclesInLahore}</h3>
-           </div>
-           <button onClick={() => setDashboardFilter('outstation')} className="bg-slate-700 p-4 rounded-2xl text-white shadow-md text-left hover:bg-slate-600 transition-colors">
-              <p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet Outstation</p>
-              <h3 className="text-2xl font-bold flex items-center gap-2"><Truck size={20} className="text-blue-400" /> {vehiclesOut.length}</h3>
-              <p className="text-[10px] text-slate-400 mt-1">Click for Details</p>
-           </button>
-           <button onClick={() => setActiveView('trip-manager')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-blue-300 hover:shadow-md transition-all">
-             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Active Trips</p>
-             <h3 className="text-2xl font-bold mt-1 text-slate-800">{openTripsCount}</h3>
-           </button>
-           <button onClick={() => setActiveView('reports')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-emerald-300 hover:shadow-md transition-all">
-             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Net Profit</p>
-             <h3 className={`text-2xl font-bold mt-1 ${pnlStats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(pnlStats.profit)}</h3>
-           </button>
+           <div className="bg-slate-800 p-4 rounded-2xl text-white shadow-md"><p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet in Lahore</p><h3 className="text-2xl font-bold flex items-center gap-2"><MapPin size={20} className="text-red-400" /> {vehiclesInLahore}</h3></div>
+           <button onClick={() => setDashboardFilter('outstation')} className="bg-slate-700 p-4 rounded-2xl text-white shadow-md text-left hover:bg-slate-600 transition-colors"><p className="text-slate-300 text-xs uppercase tracking-wider mb-1">Fleet Outstation</p><h3 className="text-2xl font-bold flex items-center gap-2"><Truck size={20} className="text-blue-400" /> {vehiclesOut.length}</h3><p className="text-[10px] text-slate-400 mt-1">Click for Details</p></button>
+           <button onClick={() => setActiveView('trip-manager')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-blue-300 hover:shadow-md transition-all"><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Active Trips</p><h3 className="text-2xl font-bold mt-1 text-slate-800">{openTripsCount}</h3></button>
+           <button onClick={() => setActiveView('reports')} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-emerald-300 hover:shadow-md transition-all"><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Net Profit</p><h3 className={`text-2xl font-bold mt-1 ${pnlStats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(pnlStats.profit)}</h3></button>
         </div>
-
-        {/* Row 2: Financials */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <button onClick={() => setDashboardFilter('receivables')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-5 rounded-2xl text-white shadow-lg text-left hover:scale-[1.02] transition-transform">
-            <p className="text-blue-100 text-xs font-medium uppercase tracking-wider">Receivables</p>
-            <h3 className="text-2xl font-bold mt-1">{formatCurrency(receivables)}</h3>
-            <p className="text-[10px] text-blue-200 mt-2 flex items-center gap-1">Click to view list <ArrowRight size={10}/></p>
-          </button>
-          
-          <button onClick={() => setDashboardFilter('payables')} className="bg-white p-5 rounded-2xl border border-red-200 shadow-sm text-left hover:border-red-400 hover:shadow-md transition-all group">
-             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Payables (Vendors)</p>
-             <h3 className="text-2xl font-bold mt-1 text-red-600">{formatCurrency(payables)}</h3>
-             <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 group-hover:text-red-500">Click to view list <ArrowRight size={10}/></p>
-          </button>
-
-          <button onClick={() => setActiveView('order-manager')} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-orange-300 hover:shadow-md transition-all group">
-             <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Pending Orders</p>
-             <h3 className="text-2xl font-bold mt-1 text-orange-600">{pendingOrders}</h3>
-             <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 group-hover:text-orange-500">Need CRO/Action <ArrowRight size={10}/></p>
-          </button>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex justify-between items-start"><div><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Cash In Hand</p><h3 className="text-2xl font-bold mt-1 text-emerald-600">{formatCurrency(cashInHand)}</h3></div><Wallet className="text-emerald-100" size={24} /></div>
-          </div>
+          <button onClick={() => setDashboardFilter('receivables')} className="bg-gradient-to-br from-blue-600 to-blue-700 p-5 rounded-2xl text-white shadow-lg text-left hover:scale-[1.02] transition-transform"><p className="text-blue-100 text-xs font-medium uppercase tracking-wider">Receivables</p><h3 className="text-2xl font-bold mt-1">{formatCurrency(receivables)}</h3><p className="text-[10px] text-blue-200 mt-2 flex items-center gap-1">Click to view list <ArrowRight size={10}/></p></button>
+          <button onClick={() => setDashboardFilter('payables')} className="bg-white p-5 rounded-2xl border border-red-200 shadow-sm text-left hover:border-red-400 hover:shadow-md transition-all group"><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Payables (Vendors)</p><h3 className="text-2xl font-bold mt-1 text-red-600">{formatCurrency(payables)}</h3><p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 group-hover:text-red-500">Click to view list <ArrowRight size={10}/></p></button>
+          <button onClick={() => setActiveView('order-manager')} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-left hover:border-orange-300 hover:shadow-md transition-all group"><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Pending Orders</p><h3 className="text-2xl font-bold mt-1 text-orange-600">{pendingOrders}</h3><p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1 group-hover:text-orange-500">Need CRO/Action <ArrowRight size={10}/></p></button>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm"><div className="flex justify-between items-start"><div><p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Cash In Hand</p><h3 className="text-2xl font-bold mt-1 text-emerald-600">{formatCurrency(cashInHand)}</h3></div><Wallet className="text-emerald-100" size={24} /></div></div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-fit">
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2"><CreditCard size={18} className="text-slate-500"/><h3 className="font-bold text-slate-800">Bank Accounts</h3></div>
-            <div className="divide-y divide-slate-100">{bankAccounts.map(acc => (<div key={acc.id} className="p-4 flex justify-between items-center hover:bg-slate-50"><span className="text-sm font-medium text-slate-700">{acc.name}</span><span className="font-mono font-bold text-slate-800 text-sm">{formatCurrency(accountBalances[acc.id] || 0)}</span></div>))}</div>
-          </div>
-          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800">Recent Activity</h3><button onClick={() => setActiveView('trip-manager')} className="text-sm text-blue-600 hover:underline">View All Trips</button></div>
-            <div className="divide-y divide-slate-100">{transactions.slice(0, 5).map(t => (<div key={t.id} className="p-4 hover:bg-slate-50 transition-colors"><div className="flex justify-between items-start"><div><div className="flex items-center gap-2">{t.type === 'Payment' ? <Banknote size={16} className="text-slate-400"/> : null}<p className="font-semibold text-slate-800">{t.description}</p>{t.status && (<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{t.status.toUpperCase()}</span>)}</div><p className="text-xs text-slate-500">{formatDate(t.createdAt)} • Ref: {t.id.slice(0, 4)}</p></div><span className="font-mono font-medium text-slate-700">{formatCurrency(t.totalAmount || t.entries?.[0]?.amount)}</span></div></div>))}</div>
-          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-fit"><div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2"><CreditCard size={18} className="text-slate-500"/><h3 className="font-bold text-slate-800">Bank Accounts</h3></div><div className="divide-y divide-slate-100">{bankAccounts.map(acc => (<div key={acc.id} className="p-4 flex justify-between items-center hover:bg-slate-50"><span className="text-sm font-medium text-slate-700">{acc.name}</span><span className="font-mono font-bold text-slate-800 text-sm">{formatCurrency(accountBalances[acc.id] || 0)}</span></div>))}</div></div>
+          <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"><div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-800">Recent Activity</h3><button onClick={() => setActiveView('trip-manager')} className="text-sm text-blue-600 hover:underline">View All Trips</button></div><div className="divide-y divide-slate-100">{transactions.slice(0, 5).map(t => (<div key={t.id} className="p-4 hover:bg-slate-50 transition-colors"><div className="flex justify-between items-start"><div><div className="flex items-center gap-2">{t.type === 'Payment' ? <Banknote size={16} className="text-slate-400"/> : null}<p className="font-semibold text-slate-800">{t.description}</p>{t.status && (<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{t.status.toUpperCase()}</span>)}</div><p className="text-xs text-slate-500">{formatDate(t.createdAt)} • Ref: {t.id.slice(0, 4)}</p></div><span className="font-mono font-medium text-slate-700">{formatCurrency(t.totalAmount || t.entries?.[0]?.amount)}</span></div></div>))}</div></div>
         </div>
       </div>
     );
   };
 
+  // 3. ORDER MANAGER
   const OrderManager = () => {
     const [mode, setMode] = useState('list');
     const [editingId, setEditingId] = useState(null);
     const [newOrder, setNewOrder] = useState({
       clientId: '', locationFrom: 'Lahore', locationTo: 'Karachi', weight: '',
-      singleVehicles: 0, doubleVehicles: 0,
-      rateSingle: '', rateDouble: '',
-      weightSingle: '', weightDouble: '',
-      containerSize: '20ft', type: 'Local', croNo: '', status: 'Pending',
-      invoiceStatus: 'Unbilled',
+      singleVehicles: 0, doubleVehicles: 0, rateSingle: '', rateDouble: '',
+      weightSingle: '', weightDouble: '', containerSize: '20ft', type: 'Local', 
+      croNo: '', status: 'Pending', invoiceStatus: 'Unbilled',
       fulfilledSingle: 0, fulfilledDouble: 0
     });
 
@@ -616,6 +450,7 @@ export default function FleetXApp() {
     );
   };
 
+  // 4. TRIP MANAGER (UPDATED)
   const TripManager = () => {
     const [tab, setTab] = useState('open'); 
     const [selectedOrderId, setSelectedOrderId] = useState('');
@@ -628,8 +463,6 @@ export default function FleetXApp() {
     
     // ** Smart Location Logic **
     const busyVehicleIds = new Set(openTrips.map(t => t.vehicleId));
-    
-    // Determine which vehicles to show based on selected Order's Origin
     const selectedOrderOrigin = orders.find(o => o.id === selectedOrderId)?.locationFrom;
     
     const availableVehicles = accounts.filter(a => {
@@ -637,7 +470,6 @@ export default function FleetXApp() {
       if(busyVehicleIds.has(a.id)) return false; 
       if (selectedOrderOrigin) {
          const currentLoc = a.currentLocation || 'Lahore'; 
-         // Simple check: current location should be related to origin
          return currentLoc.toLowerCase().includes(selectedOrderOrigin.toLowerCase()) || selectedOrderOrigin.toLowerCase().includes(currentLoc.toLowerCase());
       }
       return true;
@@ -645,7 +477,6 @@ export default function FleetXApp() {
 
     const confirmedOrders = orders.filter(o => o.status === 'Confirmed' && ((o.fulfilledSingle < o.singleVehicles) || (o.fulfilledDouble < o.doubleVehicles)));
 
-    // Auto-fill form when order selected
     useEffect(() => {
       if(selectedOrderId) {
         const ord = orders.find(o => o.id === selectedOrderId);
@@ -674,12 +505,15 @@ export default function FleetXApp() {
       try {
         if (!tripData.vehicleId || !selectedOrderId) return alert("Select Order and Vehicle");
         
-        // Ensure System Accounts
+        // Validation for System Accounts
         const vehIncomeId = getAccountId('Vehicle Income');
-        if(!vehIncomeId) return alert("System Account 'Vehicle Income' missing. Refresh.");
+        const tripExpId = getAccountId('Trip Expense');
+        const cashId = getAccountId('Cash');
+        
+        // Try creating if missing, otherwise alert
+        if(!vehIncomeId) await ensureSystemAccounts();
 
         const freight = Number(tripData.freightAmount);
-        
         // NOTE: Expenses added here are just stored in 'expenseDetails'. 
         // No Journal Entry for expenses yet (Account Method Requirement).
         const finalExpenses = expenses.filter(e => e.name && e.amount);
@@ -688,13 +522,12 @@ export default function FleetXApp() {
         const orderRef = orders.find(o => o.id === selectedOrderId)?.orderRef;
         const desc = `Trip: ${tripData.route} (${vehicleName}) - Order: ${orderRef}`;
         
-        // Initial Entry: Debit Client (Receivable), Credit Vehicle Income
         const entries = [
             { accountId: tripData.clientId, type: 'debit', amount: freight }, 
-            { accountId: vehIncomeId, type: 'credit', amount: freight }
+            { accountId: vehIncomeId || 'system-income', type: 'credit', amount: freight } // Fallback
         ];
         
-        // 1. Create Trip Transaction
+        // 1. Create Transaction (Source of Truth)
         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'transactions'), { 
             ...tripData, 
             orderId: selectedOrderId, 
@@ -709,7 +542,7 @@ export default function FleetXApp() {
         // 2. Update Vehicle Status
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', tripData.vehicleId), { currentLocation: 'On Trip' });
 
-        // 3. Update Order Slots
+        // 3. Update Order Progress
         const updateField = tripData.vehicleType === 'Single' ? { fulfilledSingle: increment(1) } : { fulfilledDouble: increment(1) };
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'orders', selectedOrderId), updateField);
 
@@ -789,7 +622,14 @@ export default function FleetXApp() {
       setDetentionData({ orderId: '', tripId: '', amount: '', loloAmount: '', remarks: '' });
       setTab('open');
     };
-    
+
+    // Update Bilty No Logic
+    const handleUpdateBilty = async () => {
+      if(!editingTrip || !editingTrip.biltyNo) return;
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', editingTrip.id), { biltyNo: editingTrip.biltyNo });
+      alert("Bilty Updated!");
+    };
+
     // --- MANAGE TRIP MODAL ---
     if (editingTrip) {
         // Calculate current total
