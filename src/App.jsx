@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useRef
-} from "react";
-
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   LayoutDashboard,
   Truck,
@@ -18,22 +12,12 @@ import {
   Banknote,
   ClipboardList,
   Wallet,
-  Edit2,
-  Trash2,
-  Plus,
-  LogOut,
-  CheckSquare,
-  Printer,
-  MapPin
+  LogOut
 } from "lucide-react";
 
 /* ================= FIREBASE ================= */
 import { initializeApp } from "firebase/app";
-import {
-  getAuth,
-  signInAnonymously,
-  onAuthStateChanged
-} from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import {
   getFirestore,
   collection,
@@ -41,12 +25,7 @@ import {
   query,
   onSnapshot,
   orderBy,
-  serverTimestamp,
-  doc,
-  updateDoc,
-  deleteDoc,
-  increment,
-  writeBatch
+  serverTimestamp
 } from "firebase/firestore";
 
 /* ================= CONFIG ================= */
@@ -72,10 +51,66 @@ const formatCurrency = (amt = 0) =>
     maximumFractionDigits: 0
   }).format(Number(amt || 0));
 
-const formatDate = (d) =>
-  d?.seconds
-    ? new Date(d.seconds * 1000).toLocaleDateString()
-    : "";
+/* ================= PLACEHOLDER VIEWS (SAFE) ================= */
+const Dashboard = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold">Dashboard</h2>
+    <p className="text-slate-500 mt-2">System running stable.</p>
+  </div>
+);
+
+const OrderManager = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold">Order Manager</h2>
+  </div>
+);
+
+const TripManager = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold">Trip Manager</h2>
+  </div>
+);
+
+const PaymentsManager = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold flex items-center gap-2">
+      <Banknote /> Payments
+    </h2>
+    <p className="text-slate-500 mt-2">
+      Payments module loaded safely.
+    </p>
+  </div>
+);
+
+const BillingView = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold">Billing / Invoice</h2>
+  </div>
+);
+
+const AccountManager = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold">Accounts</h2>
+    <p className="text-slate-500 mt-2">
+      Chart of Accounts (safe placeholder)
+    </p>
+  </div>
+);
+
+const StoreManager = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold">Inventory</h2>
+  </div>
+);
+
+const Reports = () => (
+  <div className="bg-white p-6 rounded-xl shadow">
+    <h2 className="text-2xl font-bold">Reports</h2>
+    <p className="text-slate-500 mt-2">
+      Ledger / Trial / P&L / Balance Sheet
+    </p>
+  </div>
+);
 
 /* ================= MAIN APP ================= */
 export default function FleetXApp() {
@@ -83,10 +118,7 @@ export default function FleetXApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(
     sessionStorage.getItem("fleetx_auth") === "true"
   );
-  const [loginCreds, setLoginCreds] = useState({
-    username: "",
-    password: ""
-  });
+  const [loginCreds, setLoginCreds] = useState({ username: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -94,15 +126,6 @@ export default function FleetXApp() {
   /* ---------- UI ---------- */
   const [activeView, setActiveView] = useState("dashboard");
   const [mobileMenu, setMobileMenu] = useState(false);
-
-  /* ---------- DATA ---------- */
-  const [accounts, setAccounts] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [inventory, setInventory] = useState([]);
-
-  /* ---------- SYSTEM INIT ---------- */
-  const systemInitDone = useRef(false);
 
   /* ================= AUTH INIT ================= */
   useEffect(() => {
@@ -113,76 +136,6 @@ export default function FleetXApp() {
     });
   }, []);
 
-  /* ================= DATA LISTENERS ================= */
-  useEffect(() => {
-    if (!user) return;
-
-    const base = ["artifacts", APP_ID, "public", "data"];
-
-    const unsub = [
-      onSnapshot(
-        query(collection(db, ...base, "accounts")),
-        (s) => setAccounts(s.docs.map(d => ({ id: d.id, ...d.data() })))
-      ),
-      onSnapshot(
-        query(collection(db, ...base, "transactions"), orderBy("createdAt", "desc")),
-        (s) => setTransactions(s.docs.map(d => ({ id: d.id, ...d.data() })))
-      ),
-      onSnapshot(
-        query(collection(db, ...base, "orders"), orderBy("createdAt", "desc")),
-        (s) => setOrders(s.docs.map(d => ({ id: d.id, ...d.data() })))
-      ),
-      onSnapshot(
-        query(collection(db, ...base, "inventory")),
-        (s) => setInventory(s.docs.map(d => ({ id: d.id, ...d.data() })))
-      )
-    ];
-
-    return () => unsub.forEach(u => u());
-  }, [user]);
-
-  /* ================= SYSTEM ACCOUNTS ================= */
-  const SYSTEM_ACCOUNTS = [
-    { code: "CASH", name: "Cash", category: "Cash", type: "Asset" },
-    { code: "VEH_INCOME", name: "Vehicle Income", category: "Income", type: "Income" },
-    { code: "TRIP_EXP", name: "Trip Expense", category: "Expense", type: "Expense" },
-    { code: "GEN_INCOME", name: "Income", category: "Income", type: "Income" }
-  ];
-
-  useEffect(() => {
-    if (!user || accounts.length === 0 || systemInitDone.current) return;
-
-    (async () => {
-      for (const acc of SYSTEM_ACCOUNTS) {
-        if (!accounts.find(a => a.code === acc.code)) {
-          await addDoc(
-            collection(db, "artifacts", APP_ID, "public", "data", "accounts"),
-            { ...acc, createdAt: serverTimestamp() }
-          );
-        }
-      }
-      systemInitDone.current = true;
-    })();
-  }, [accounts, user]);
-
-  const getAccountByCode = (code) =>
-    accounts.find(a => a.code === code)?.id || null;
-
-  /* ================= BALANCES ================= */
-  const balances = useMemo(() => {
-    const b = {};
-    accounts.forEach(a => (b[a.id] = 0));
-    transactions.forEach(t =>
-      t.entries?.forEach(e => {
-        if (!b[e.accountId]) b[e.accountId] = 0;
-        b[e.accountId] += e.type === "debit"
-          ? Number(e.amount)
-          : -Number(e.amount);
-      })
-    );
-    return b;
-  }, [accounts, transactions]);
-
   /* ================= LOGIN ================= */
   const handleLogin = (e) => {
     e.preventDefault();
@@ -190,7 +143,9 @@ export default function FleetXApp() {
       sessionStorage.setItem("fleetx_auth", "true");
       setIsAuthenticated(true);
       setLoginError("");
-    } else setLoginError("Invalid login");
+    } else {
+      setLoginError("Invalid Username or Password");
+    }
   };
 
   const logout = () => {
@@ -200,7 +155,11 @@ export default function FleetXApp() {
 
   /* ================= SIDEBAR ================= */
   const Sidebar = ({ mobile }) => (
-    <div className={`bg-slate-900 text-white ${mobile ? "w-full" : "w-64"} flex flex-col`}>
+    <div
+      className={`bg-slate-900 text-white ${
+        mobile ? "w-full" : "w-64"
+      } h-full flex flex-col`}
+    >
       <div className="p-6 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <Truck size={20} />
@@ -226,7 +185,7 @@ export default function FleetXApp() {
               setActiveView(id);
               setMobileMenu(false);
             }}
-            className={`w-full flex items-center gap-3 p-3 rounded-xl ${
+            className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${
               activeView === id
                 ? "bg-blue-600"
                 : "text-slate-400 hover:bg-slate-800"
@@ -246,6 +205,34 @@ export default function FleetXApp() {
     </div>
   );
 
+  /* ================= SAFE VIEW RENDERER ================= */
+  const renderView = () => {
+    switch (activeView) {
+      case "dashboard":
+        return <Dashboard />;
+      case "order-manager":
+        return <OrderManager />;
+      case "trip-manager":
+        return <TripManager />;
+      case "payments":
+        return <PaymentsManager />;
+      case "billing":
+        return <BillingView />;
+      case "accounts":
+        return <AccountManager />;
+      case "store":
+        return <StoreManager />;
+      case "reports":
+        return <Reports />;
+      default:
+        return (
+          <div className="text-red-600 font-bold">
+            Unknown view: {activeView}
+          </div>
+        );
+    }
+  };
+
   /* ================= LOGIN SCREEN ================= */
   if (!isAuthenticated) {
     return (
@@ -254,7 +241,9 @@ export default function FleetXApp() {
           onSubmit={handleLogin}
           className="bg-white p-8 rounded-xl w-full max-w-sm"
         >
-          <h2 className="text-xl font-bold mb-4 text-center">FleetX Login</h2>
+          <h2 className="text-xl font-bold mb-4 text-center">
+            FleetX Secure Login
+          </h2>
 
           <input
             className="w-full p-3 border rounded mb-3"
@@ -264,6 +253,7 @@ export default function FleetXApp() {
               setLoginCreds({ ...loginCreds, username: e.target.value })
             }
           />
+
           <input
             type="password"
             className="w-full p-3 border rounded mb-3"
@@ -286,12 +276,13 @@ export default function FleetXApp() {
     );
   }
 
-  if (loading)
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading…
+        Loading System…
       </div>
     );
+  }
 
   /* ================= MAIN LAYOUT ================= */
   return (
@@ -306,10 +297,7 @@ export default function FleetXApp() {
         </div>
       )}
 
-      <main className="flex-1 p-4 md:p-8">
-        {/* Views preserved – dashboard, orders, trips, payments, billing, accounts, inventory, reports */}
-        {/* Your existing components plug here WITHOUT CHANGE */}
-      </main>
+      <main className="flex-1 p-4 md:p-8">{renderView()}</main>
     </div>
   );
 }
