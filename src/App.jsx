@@ -702,6 +702,73 @@ export default function FleetXApp() {
     );
   };
 
+  const BillingView = () => {
+    const [selectedClient, setSelectedClient] = useState('');
+    const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+    const [generated, setGenerated] = useState(false);
+
+    const availableOrders = useMemo(() => {
+      if(!selectedClient) return [];
+      return orders.filter(o => o.clientId === selectedClient && o.status === 'Confirmed' && o.invoiceStatus !== 'Billed');
+    }, [selectedClient, orders]);
+
+    const handleGenerate = () => {
+      if(selectedOrderIds.length === 0) return alert("Select at least one order");
+      setGenerated(true);
+    };
+
+    const handleFinalizeInvoice = async () => {
+      const batch = writeBatch(db);
+      selectedOrderIds.forEach(orderId => {
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId);
+        batch.update(ref, { invoiceStatus: 'Billed' });
+      });
+      await batch.commit();
+      alert("Bill Finalized & Orders marked as Billed!");
+      setGenerated(false);
+      setSelectedOrderIds([]);
+      setSelectedClient('');
+    };
+
+    const invoiceData = useMemo(() => {
+      if(!generated) return null;
+      const selectedOrders = orders.filter(o => selectedOrderIds.includes(o.id));
+      const relevantTrips = transactions.filter(t => t.type === 'Trip' && selectedOrderIds.includes(t.orderId));
+      const grandTotal = relevantTrips.reduce((sum, t) => sum + Number(t.totalAmount) + Number(t.detentionAmount || 0) + Number(t.loloAmount || 0), 0);
+      return { selectedOrders, relevantTrips, grandTotal };
+    }, [generated, selectedOrderIds, orders, transactions]);
+
+    if (generated && invoiceData) {
+      const clientName = accounts.find(a => a.id === selectedClient)?.name || '';
+      return (
+        <div className="bg-white p-8 max-w-5xl mx-auto shadow-2xl rounded-none animate-fade-in print:shadow-none print:w-full">
+           <div className="flex justify-between items-start mb-8 pb-8 border-b-2 border-slate-800"><div><h1 className="text-3xl font-bold text-slate-900 uppercase tracking-wide">Bill</h1><p className="text-slate-500 font-medium">Azam Afridi Goods Transport</p></div><div className="text-right"><h2 className="text-xl font-bold text-slate-700">{clientName}</h2><p className="text-sm text-slate-500">Date: {new Date().toLocaleDateString()}</p></div></div>
+           <div className="mb-6"><h4 className="font-bold text-sm text-slate-600 uppercase mb-2">Orders Included:</h4><div className="flex flex-wrap gap-2">{invoiceData.selectedOrders.map(o => (<span key={o.id} className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs border border-slate-200">{o.orderRef}</span>))}</div></div>
+           <table className="w-full text-left mb-8"><thead className="bg-slate-100 text-slate-700 font-bold uppercase text-xs"><tr><th className="p-3">Order #</th><th className="p-3">Vehicle</th><th className="p-3">Bilty</th><th className="p-3">Route</th><th className="p-3 text-right">Weight (MT)</th><th className="p-3 text-right">Ref (CRO/GD)</th><th className="p-3 text-right">Freight Amount</th><th className="p-3 text-right">Detention</th><th className="p-3 text-right">LOLO</th><th className="p-3 text-right">Total</th></tr></thead>
+           <tbody className="divide-y divide-slate-200 text-sm">
+             {invoiceData.relevantTrips.length > 0 ? (
+               invoiceData.relevantTrips.map((t, idx) => { 
+                 const order = orders.find(o => o.id === t.orderId); 
+                 const vehName = accounts.find(a=>a.id===t.vehicleId)?.name; 
+                 let refLabel = 'Ref:'; if(order?.type === 'Import') refLabel = 'GD:'; else if(order?.type === 'Export') refLabel = 'CRO:';
+                 return (<tr key={idx}><td className="p-3 font-mono">{order?.orderRef || '-'}</td><td className="p-3 font-medium">{vehName} <span className="text-xs text-slate-400">({t.vehicleType})</span></td><td className="p-3">{t.biltyNo || '-'}</td><td className="p-3 text-xs">{t.route}</td><td className="p-3 text-right">{t.weight || '-'}</td><td className="p-3 text-right text-xs">{refLabel} {order?.croNo}</td><td className="p-3 text-right">{formatCurrency(t.totalAmount).replace('PKR', '')}</td><td className="p-3 text-right text-red-600">{t.detentionAmount ? formatCurrency(t.detentionAmount).replace('PKR', '') : '-'}</td><td className="p-3 text-right text-orange-600">{t.loloAmount ? formatCurrency(t.loloAmount).replace('PKR', '') : '-'}</td><td className="p-3 text-right font-bold">{formatCurrency(Number(t.totalAmount) + Number(t.detentionAmount || 0) + Number(t.loloAmount || 0)).replace('PKR', '')}</td></tr>); 
+               })
+             ) : (
+               <tr><td colSpan="10" className="p-8 text-center text-slate-400 italic">No trips recorded for selected orders. Please add trips in Trip Manager first.</td></tr>
+             )}
+           </tbody>
+           <tfoot className="border-t-2 border-slate-800"><tr><td colSpan="9" className="p-4 text-right font-bold text-lg uppercase">Grand Total Payable</td><td className="p-4 text-right font-bold text-lg bg-slate-50">{formatCurrency(invoiceData.grandTotal)}</td></tr></tfoot></table>
+           <div className="mt-8 text-center print:block"><p className="text-xs font-medium text-slate-500 italic border-t border-slate-100 pt-4">Bill amount is excluded of all tax.</p></div>
+           <div className="mt-8 flex gap-4 print:hidden justify-center"><button onClick={() => window.print()} className="bg-slate-100 text-slate-800 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 flex items-center gap-2"><Printer size={20} /> Print</button><button onClick={handleFinalizeInvoice} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 flex items-center gap-2"><CheckSquare size={20} /> Finalize Invoice</button><button onClick={() => setGenerated(false)} className="bg-red-50 text-red-600 px-6 py-3 rounded-xl font-bold hover:bg-red-100">Cancel</button></div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 animate-fade-in"><div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm"><h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><FileText className="text-blue-600"/> Advance Invoice Generator</h3><div className="space-y-6"><div><label className="block text-sm font-bold text-slate-700 mb-2">Select Client</label><select className="w-full p-3 border border-slate-200 rounded-xl" value={selectedClient} onChange={e => { setSelectedClient(e.target.value); setSelectedOrderIds([]); }}><option value="">Choose Client...</option>{accounts.filter(a => a.category === 'Client').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>{selectedClient && (<div className="bg-slate-50 p-4 rounded-xl border border-slate-200"><h4 className="font-bold text-slate-700 text-sm mb-3">Select Orders to Bill</h4>{availableOrders.length > 0 ? (<div className="space-y-2 max-h-60 overflow-y-auto">{availableOrders.map(o => (<label key={o.id} className="flex items-center p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-blue-400"><input type="checkbox" className="w-5 h-5 text-blue-600 rounded mr-3" checked={selectedOrderIds.includes(o.id)} onChange={(e) => { if(e.target.checked) setSelectedOrderIds([...selectedOrderIds, o.id]); else setSelectedOrderIds(selectedOrderIds.filter(id => id !== o.id)); }} /><div className="flex-1"><div className="flex justify-between font-bold text-sm"><span>{o.orderRef}</span><span>{formatDate(o.createdAt)}</span></div><div className="text-xs text-slate-500 mt-1">{o.locationFrom} <ArrowRight size={10} className="inline"/> {o.locationTo} • {o.croNo}</div></div></label>))}</div>) : (<p className="text-slate-400 text-sm text-center py-4">No unbilled confirmed orders found. Please confirm an order in Order Manager first.</p>)}</div>)}<div className="pt-4"><button onClick={handleGenerate} disabled={!selectedClient || selectedOrderIds.length === 0} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">Generate Invoice</button></div></div></div></div>
+    );
+  };
+
   const PaymentsManager = () => {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [description, setDescription] = useState('');
