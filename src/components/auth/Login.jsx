@@ -158,4 +158,82 @@ const Login = () => {
                   id="remember"
                   className="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500"
                 />
-                <label htmlFor
+                <label htmlFor="remember" className="ml-2 text-sm text-slate-300">
+                  Remember me
+                </label>
+              </div>
+              <Link
+                to="/forgot-password"
+                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+
+            {/* Demo Login Buttons */}
+            <div className="pt-4 border-t border-white/10">
+              <p className="text-sm text-slate-400 text-center mb-3">Quick Demo Access</p>
+              <div className="grid grid-cols-3 gap-2">
+                {['admin', 'transporter', 'accountant'].map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => handleDemoLogin(role)}
+                    className="py-2 bg-white/5 hover:bg-white/10 rounded-lg text-slate-300 text-sm font-medium transition-colors capitalize"
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </form>
+
+          {/* Signup Link */}
+          <div className="mt-8 pt-6 border-t border-white/10 text-center">
+            <p className="text-slate-400">
+              New to FleetX?{' '}
+              <Link
+                to="/signup"
+                className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+              >
+                Create an account
+              </Link>
+            </p>
+            <p className="text-xs text-slate-500 mt-4">
+              By signing in, you agree to our Terms of Service and Privacy Policy
+            </p>
+          </div>
+        </div>
+
+        {/* App Info */}
+        <div className="mt-8 text-center">
+          <p className="text-sm text-slate-400">
+            FleetX v{window.publicConfig?.APP_VERSION || '2.0.0'} • 
+            {window.publicConfig?.COMPANY_NAME || 'Azam Afridi Goods Transport'}
+          </p>
+          <p className="text-xs text-slate-500 mt-2">
+            Need help? {window.publicConfig?.SUPPORT.PHONE} • {window.publicConfig?.SUPPORT.EMAIL}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Login;
