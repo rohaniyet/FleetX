@@ -1,17 +1,34 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+// SUPABASE CONFIG (Recommended)
+import { createClient } from '@supabase/supabase-js'
 
-const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID,
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID
-};
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const supabase = createClient(supabaseUrl, supabaseKey)
+
+// OR FIREBASE MULTI-TENANT
+import { initializeApp } from 'firebase/app'
+import { getAuth } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
+
+// Multi-tenant configuration
+const getTenantConfig = (tenantId) => {
+  return {
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+    authDomain: `${tenantId}.firebaseapp.com`,
+    projectId: `${tenantId}`,
+    storageBucket: `${tenantId}.appspot.com`,
+    messagingSenderId: process.env.REACT_APP_FIREBASE_SENDER_ID,
+    appId: process.env.REACT_APP_FIREBASE_APP_ID
+  }
+}
+
+export const initializeTenant = (tenantId) => {
+  const config = getTenantConfig(tenantId)
+  const app = initializeApp(config, tenantId)
+  return {
+    auth: getAuth(app),
+    db: getFirestore(app),
+    tenantId
+  }
+}
