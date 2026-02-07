@@ -1,0 +1,14 @@
+# FleetX ERP Robots.txt
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://fleetx.vercel.app/sitemap.xml
+
+# Disallow admin panels
+Disallow: /admin/
+Disallow: /dashboard/admin/
+Disallow: /api/
+
+# Crawl delay
+Crawl-delay: 2
