@@ -4,30 +4,85 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="FleetX - Professional Transport Management System"
-    />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="description" content="FleetX - Professional Transport Management ERP System" />
     
-    <!-- Load Public Config -->
+    <!-- Load Public Configuration -->
     <script src="%PUBLIC_URL%/config.js"></script>
     
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!-- PWA Manifest -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     
-    <title>FleetX Transport ERP</title>
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    
+    <title>FleetX | Transport Management ERP</title>
+    
+    <!-- Preconnect for better performance -->
+    <link rel="preconnect" href="https://sjclcjhkmpfrwekukptg.supabase.co" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        background-color: #f8fafc;
+        color: #1e293b;
+        overflow-x: hidden;
+      }
+      
+      /* Loading animation */
+      #root {
+        min-height: 100vh;
+      }
+      
+      /* Development indicator */
+      body.dev-mode::before {
+        content: 'DEV MODE';
+        position: fixed;
+        top: 0;
+        right: 0;
+        background: #ef4444;
+        color: white;
+        padding: 2px 8px;
+        font-size: 10px;
+        font-weight: bold;
+        z-index: 9999;
+        border-bottom-left-radius: 4px;
+      }
+    </style>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>
+      <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 20px;">
+        <div style="text-align: center; max-width: 500px;">
+          <h1 style="color: #ef4444; margin-bottom: 20px;">JavaScript Required</h1>
+          <p style="margin-bottom: 20px;">FleetX requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+          <p style="font-size: 14px; color: #64748b;">If the problem persists, contact support@fleetx.com</p>
+        </div>
+      </div>
+    </noscript>
+    
     <div id="root"></div>
     
-    <!-- Development Indicator -->
+    <!-- Environment detection script -->
     <script>
-      if (window.location.hostname === 'localhost') {
-        console.log('🛠️ Development Mode Active');
+      // Detect environment
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         document.body.classList.add('dev-mode');
+        console.log('🚧 FleetX Development Mode');
       }
+      
+      // Log app start
+      console.log('🚚 FleetX ERP Loading...');
     </script>
   </body>
 </html>
