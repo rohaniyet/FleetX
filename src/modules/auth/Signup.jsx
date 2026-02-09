@@ -296,9 +296,18 @@ const Signup = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Owner Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Owner Name *
-                      </label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-
+                  <div>
+  <label className="block text-sm font-medium text-slate-300 mb-2">
+    Owner Name *
+  </label>
+
+  <div className="relative">
+    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+
+    <input
+      type="text"
+      className="w-full pl-10 pr-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      placeholder="Enter owner name"
+    />
+  </div>
+</div>
