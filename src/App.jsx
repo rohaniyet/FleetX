@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
 
 // Components
-import Sidebar from './components/layout/sidebar';
+import Sidebar from './components/layout/Sidebar.jsx';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Modules
