@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Truck, 
-  Building2, 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Lock, 
-  Eye, 
+import { useNavigate, Link } from 'react-router-dom';
+import {
+  Truck,
+  Building2,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Lock,
+  Eye,
   EyeOff,
   CheckCircle,
   AlertCircle
@@ -17,82 +17,55 @@ import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const Signup = () => {
+  const { signUp } = useAuth();
+  const navigate = useNavigate();
+
   const [step, setStep] = useState(1);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [formData, setFormData] = useState({
-    // Company Details
     companyName: '',
     companyType: 'Transport',
-    registrationNumber: '',
-    establishedYear: new Date().getFullYear(),
-    
-    // Owner Details
     ownerName: '',
     ownerEmail: '',
     ownerPhone: '',
     ownerCNIC: '',
-    
-    // Address
     address: '',
     city: 'Lahore',
     province: 'Punjab',
-    
-    // Business Details
-    fleetSize: '1-5',
-    monthlyTrips: 'Less than 20',
-    primaryRoutes: 'Lahore-Karachi',
-    
-    // Login Credentials
     username: '',
     password: '',
     confirmPassword: '',
     agreeTerms: false
   });
 
-  const { signUp } = useAuth();
-  const navigate = useNavigate();
+  const update = (key, value) =>
+    setFormData((prev) => ({ ...prev, [key]: value }));
 
-  const provinces = ['Punjab', 'Sindh', 'Khyber Pakhtunkhwa', 'Balochistan', 'Gilgit-Baltistan', 'Azad Kashmir'];
-  const cities = {
-    'Punjab': ['Lahore', 'Faisalabad', 'Rawalpindi', 'Multan', 'Gujranwala', 'Sialkot'],
-    'Sindh': ['Karachi', 'Hyderabad', 'Sukkur', 'Larkana', 'Mirpur Khas'],
-    'Khyber Pakhtunkhwa': ['Peshawar', 'Abbottabad', 'Mardan', 'Swat', 'Kohat'],
-    'Balochistan': ['Quetta', 'Gwadar', 'Turbat', 'Khuzdar', 'Chaman'],
-    'Gilgit-Baltistan': ['Gilgit', 'Skardu', 'Hunza'],
-    'Azad Kashmir': ['Muzaffarabad', 'Mirpur', 'Kotli']
-  };
-
-  const handleNext = () => {
+  const nextStep = () => {
     setError('');
-    
+
     if (step === 1) {
       if (!formData.companyName || !formData.ownerName || !formData.ownerEmail) {
         setError('Please fill all required fields');
         return;
       }
-      
-      // Email validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.ownerEmail)) {
-        setError('Please enter a valid email address');
-        return;
-      }
-      
-      setStep(2);
-    } else if (step === 2) {
-      if (!formData.address || !formData.city || !formData.province) {
-        setError('Please fill all address fields');
-        return;
-      }
-      setStep(3);
     }
+
+    if (step === 2) {
+      if (!formData.address || !formData.city || !formData.province) {
+        setError('Please complete address details');
+        return;
+      }
+    }
+
+    setStep(step + 1);
   };
 
-  const handleBack = () => {
+  const prevStep = () => {
     setError('');
     setStep(step - 1);
   };
@@ -100,214 +73,193 @@ const Signup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    // Validation
-    if (!formData.username || !formData.password || !formData.confirmPassword) {
-      setError('Please fill all required fields');
+
+    if (!formData.username || !formData.password) {
+      setError('Username and password required');
       return;
     }
-    
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    
+
     if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters long');
+      setError('Password must be at least 8 characters');
       return;
     }
-    
+
     if (!formData.agreeTerms) {
-      setError('You must agree to the Terms of Service');
+      setError('You must accept terms & conditions');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      // Prepare user data
-      const userData = {
+      const metaData = {
         company_name: formData.companyName,
         company_type: formData.companyType,
-        registration_number: formData.registrationNumber,
-        established_year: formData.establishedYear,
         owner_name: formData.ownerName,
         owner_phone: formData.ownerPhone,
         owner_cnic: formData.ownerCNIC,
         address: formData.address,
         city: formData.city,
         province: formData.province,
-        fleet_size: formData.fleetSize,
-        monthly_trips: formData.monthlyTrips,
-        primary_routes: formData.primaryRoutes,
         username: formData.username
       };
-      
-      // Call signup API
-      const result = await signUp(formData.ownerEmail, formData.password, userData);
-      
-      if (result.success) {
-        toast.success('Registration successful! Please check your email for verification.');
-        navigate('/login');
-      } else {
-        throw new Error(result.error || 'Registration failed');
+
+      const result = await signUp(
+        formData.ownerEmail,
+        formData.password,
+        metaData
+      );
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Signup failed');
       }
-    } catch (error) {
-      console.error('Signup error:', error);
-      
-      let errorMessage = error.message;
-      if (errorMessage.includes('User already registered')) {
-        errorMessage = 'This email is already registered. Please login instead.';
-      } else if (errorMessage.includes('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.';
-      }
-      
-      setError(errorMessage);
-      toast.error(errorMessage);
+
+      toast.success('Account created. Please verify email.');
+      navigate('/login');
+    } catch (err) {
+      setError(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDemoFill = () => {
-    setFormData({
-      companyName: 'Demo Transport Co.',
-      companyType: 'Transport',
-      registrationNumber: 'TRN-123456',
-      establishedYear: 2020,
-      ownerName: 'Demo Owner',
-      ownerEmail: 'demo@fleetx.com',
-      ownerPhone: '03001234567',
-      ownerCNIC: '12345-6789012-3',
-      address: '123 Demo Street, Gulberg',
-      city: 'Lahore',
-      province: 'Punjab',
-      fleetSize: '6-10',
-      monthlyTrips: '20-50 Trips',
-      primaryRoutes: 'Lahore-Karachi, Islamabad-Peshawar',
-      username: 'demo_owner',
-      password: 'Demo@12345',
-      confirmPassword: 'Demo@12345',
-      agreeTerms: true
-    });
-    
-    toast.success('Demo data loaded. You can modify as needed.');
-  };
-
-  const StepIndicator = () => (
-    <div className="flex items-center justify-center mb-8">
-      {[1, 2, 3].map((s) => (
-        <React.Fragment key={s}>
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            step >= s ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
-          } font-bold`}>
-            {step > s ? <CheckCircle size={16} /> : s}
-          </div>
-          {s < 3 && (
-            <div className={`w-16 h-1 ${step > s ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
+      <div className="w-full max-w-3xl bg-slate-800 rounded-2xl shadow-xl p-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-2xl mb-4">
-            <Truck size={32} className="text-white" />
+          <div className="mx-auto mb-4 w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center">
+            <Truck className="text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Join FleetX</h1>
-          <p className="text-slate-300 text-lg">Professional Transport Management ERP</p>
-          <p className="text-slate-400 text-sm mt-2">30-Day Free Trial • No Credit Card Required</p>
+          <h1 className="text-3xl font-bold text-white">FleetX Signup</h1>
+          <p className="text-slate-400 mt-1">Professional Transport ERP</p>
         </div>
 
-        {/* Form Container */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-          <div className="p-8">
-            <StepIndicator />
-            
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {step === 1 && 'Company Information'}
-                {step === 2 && 'Business Details'}
-                {step === 3 && 'Create Account'}
-              </h2>
-              <p className="text-slate-300">
-                {step === 1 && 'Tell us about your transport business'}
-                {step === 2 && 'Complete your business profile'}
-                {step === 3 && 'Setup your login credentials'}
-              </p>
-            </div>
+        {/* Error */}
+        {error && (
+          <div className="mb-6 flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg">
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        )}
 
-            {/* Error Message */}
-            {error && (
-              <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-                <div className="flex items-center gap-2 text-red-400">
-                  <AlertCircle size={18} />
-                  <span className="font-medium">{error}</span>
-                </div>
-              </div>
+        <form onSubmit={handleSubmit}>
+          {/* STEP 1 */}
+          {step === 1 && (
+            <div className="space-y-5">
+              <Input label="Company Name *" icon={Building2} value={formData.companyName} onChange={(e) => update('companyName', e.target.value)} />
+              <Input label="Owner Name *" icon={User} value={formData.ownerName} onChange={(e) => update('ownerName', e.target.value)} />
+              <Input label="Owner Email *" icon={Mail} type="email" value={formData.ownerEmail} onChange={(e) => update('ownerEmail', e.target.value)} />
+            </div>
+          )}
+
+          {/* STEP 2 */}
+          {step === 2 && (
+            <div className="space-y-5">
+              <Input label="Phone" icon={Phone} value={formData.ownerPhone} onChange={(e) => update('ownerPhone', e.target.value)} />
+              <Input label="CNIC" icon={User} value={formData.ownerCNIC} onChange={(e) => update('ownerCNIC', e.target.value)} />
+              <Input label="Address" icon={MapPin} value={formData.address} onChange={(e) => update('address', e.target.value)} />
+            </div>
+          )}
+
+          {/* STEP 3 */}
+          {step === 3 && (
+            <div className="space-y-5">
+              <Input label="Username" icon={User} value={formData.username} onChange={(e) => update('username', e.target.value)} />
+
+              <PasswordInput
+                label="Password"
+                value={formData.password}
+                show={showPassword}
+                toggle={() => setShowPassword(!showPassword)}
+                onChange={(e) => update('password', e.target.value)}
+              />
+
+              <PasswordInput
+                label="Confirm Password"
+                value={formData.confirmPassword}
+                show={showConfirmPassword}
+                toggle={() => setShowConfirmPassword(!showConfirmPassword)}
+                onChange={(e) => update('confirmPassword', e.target.value)}
+              />
+
+              <label className="flex items-center gap-2 text-slate-300 text-sm">
+                <input type="checkbox" checked={formData.agreeTerms} onChange={(e) => update('agreeTerms', e.target.checked)} />
+                I agree to Terms & Conditions
+              </label>
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex justify-between mt-8">
+            {step > 1 ? (
+              <button type="button" onClick={prevStep} className="px-6 py-2 bg-slate-700 text-white rounded-lg">
+                Back
+              </button>
+            ) : (
+              <div />
             )}
 
-            {/* Form Steps */}
-            <form onSubmit={step === 3 ? handleSubmit : (e) => { e.preventDefault(); handleNext(); }}>
-              {step === 1 && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Company Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Company Name *
-                      </label>
-                      <div className="relative">
-                        <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
-                        <input
-                          type="text"
-                          value={formData.companyName}
-                          onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                          className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="e.g., Al Wahab Goods Transport"
-                          required
-                        />
-                      </div>
-                    </div>
+            {step < 3 ? (
+              <button type="button" onClick={nextStep} className="px-6 py-2 bg-blue-600 text-white rounded-lg">
+                Next
+              </button>
+            ) : (
+              <button type="submit" disabled={loading} className="px-6 py-2 bg-green-600 text-white rounded-lg">
+                {loading ? 'Creating...' : 'Create Account'}
+              </button>
+            )}
+          </div>
+        </form>
 
-                    {/* Company Type */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Business Type
-                      </label>
-                      <select
-                        value={formData.companyType}
-                        onChange={(e) => setFormData({...formData, companyType: e.target.value})}
-                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="Transport">Transport & Logistics</option>
-                        <option value="Goods">Goods Transport</option>
-                        <option value="Cargo">Cargo Services</option>
-                        <option value="Logistics">Logistics Company</option>
-                        <option value="Freight">Freight Forwarding</option>
-                      </select>
-                    </div>
-                  </div>
+        <p className="text-center text-slate-400 mt-6">
+          Already have an account?{' '}
+          <Link to="/login" className="text-blue-400 font-semibold">
+            Login
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+};
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Owner Name */}
-                  <div>
-  <label className="block text-sm font-medium text-slate-300 mb-2">
-    Owner Name *
-  </label>
+/* ---------- SMALL REUSABLE INPUTS ---------- */
 
-  <div className="relative">
-    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-
-    <input
-      type="text"
-      className="w-full pl-10 pr-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      placeholder="Enter owner name"
-    />
+const Input = ({ label, icon: Icon, ...props }) => (
+  <div>
+    <label className="block text-slate-300 text-sm mb-1">{label}</label>
+    <div className="relative">
+      <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+      <input
+        {...props}
+        className="w-full pl-10 pr-3 py-2 bg-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
   </div>
-</div>
+);
+
+const PasswordInput = ({ label, value, show, toggle, onChange }) => (
+  <div>
+    <label className="block text-slate-300 text-sm mb-1">{label}</label>
+    <div className="relative">
+      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        className="w-full pl-10 pr-10 py-2 bg-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <button type="button" onClick={toggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+        {show ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  </div>
+);
+
+export default Signup;
