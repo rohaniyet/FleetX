@@ -3,20 +3,19 @@ import {
   FileText, 
   Download, 
   Printer, 
-  Send, 
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Search,
+  Mail, 
+  Search, 
   Filter,
-  Plus,
-  Eye,
-  Copy,
   DollarSign,
   Calendar,
   User,
   Truck,
-  Package
+  Package,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  ArrowRight,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -24,142 +23,118 @@ import toast from 'react-hot-toast';
 const BillingView = () => {
   const { tenant } = useAuth();
   const [invoices, setInvoices] = useState([]);
-  const [filteredInvoices, setFilteredInvoices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  
-  // Mock data for invoices
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [selectedInvoices, setSelectedInvoices] = useState([]);
+
+  // Mock data
   const mockInvoices = [
     {
       id: 'INV-2024-001',
-      client: 'Al Wahab Goods',
-      clientId: 'CLIENT-001',
+      clientId: 'CL-001',
+      clientName: 'Al Wahab Goods',
       date: '2024-01-15',
-      dueDate: '2024-02-15',
-      amount: 65000,
-      paid: 65000,
-      status: 'paid',
-      type: 'Trip Charges',
-      trips: ['TRIP-2024-001'],
-      items: [
-        { description: 'Freight Lahore to Karachi', quantity: 1, rate: 45000, amount: 45000 },
-        { description: 'Detention Charges', quantity: 1, rate: 5000, amount: 5000 },
-        { description: 'LOLO Charges', quantity: 1, rate: 15000, amount: 15000 }
-      ]
+      dueDate: '2024-01-30',
+      amount: 145000,
+      paid: 100000,
+      status: 'partially_paid',
+      trips: ['TRIP-2024-001', 'TRIP-2024-002'],
+      downloadUrl: '#'
     },
     {
       id: 'INV-2024-002',
-      client: 'Speed Cargo',
-      clientId: 'CLIENT-002',
+      clientId: 'CL-002',
+      clientName: 'Speed Cargo',
       date: '2024-01-16',
-      dueDate: '2024-02-16',
-      amount: 45000,
-      paid: 20000,
-      status: 'partial',
-      type: 'Transport Services',
+      dueDate: '2024-01-31',
+      amount: 85000,
+      paid: 0,
+      status: 'pending',
       trips: ['TRIP-2024-003'],
-      items: [
-        { description: 'Freight Karachi to Islamabad', quantity: 1, rate: 45000, amount: 45000 }
-      ]
+      downloadUrl: '#'
     },
     {
       id: 'INV-2024-003',
-      client: 'National Logistics',
-      clientId: 'CLIENT-003',
+      clientId: 'CL-003',
+      clientName: 'National Logistics',
       date: '2024-01-14',
-      dueDate: '2024-02-14',
+      dueDate: '2024-01-29',
       amount: 28000,
-      paid: 0,
-      status: 'pending',
-      type: 'Local Transport',
-      trips: ['TRIP-2024-002'],
-      items: [
-        { description: 'Freight Lahore to Faisalabad', quantity: 1, rate: 28000, amount: 28000 }
-      ]
+      paid: 28000,
+      status: 'paid',
+      trips: ['TRIP-2024-004'],
+      downloadUrl: '#'
     },
     {
       id: 'INV-2024-004',
-      client: 'Global Transport',
-      clientId: 'CLIENT-004',
+      clientId: 'CL-004',
+      clientName: 'Global Transport',
       date: '2024-01-10',
-      dueDate: '2024-02-10',
-      amount: 95000,
-      paid: 95000,
+      dueDate: '2024-01-25',
+      amount: 52000,
+      paid: 52000,
       status: 'paid',
-      type: 'Container Transport',
-      trips: ['TRIP-2024-004'],
-      items: [
-        { description: 'Double Vehicle Transport', quantity: 2, rate: 47500, amount: 95000 }
-      ]
+      trips: ['TRIP-2024-005'],
+      downloadUrl: '#'
     },
     {
       id: 'INV-2024-005',
-      client: 'Fast Track Cargo',
-      clientId: 'CLIENT-005',
+      clientId: 'CL-005',
+      clientName: 'Fast Track Cargo',
       date: '2024-01-12',
-      dueDate: '2024-02-12',
+      dueDate: '2024-01-27',
       amount: 32000,
       paid: 0,
       status: 'overdue',
-      type: 'Cancelled Trip',
-      trips: ['TRIP-2024-005'],
-      items: [
-        { description: 'Cancellation Charges', quantity: 1, rate: 32000, amount: 32000 }
-      ]
+      trips: [],
+      downloadUrl: '#'
     }
   ];
 
+  const mockClients = [
+    { id: 'CL-001', name: 'Al Wahab Goods', balance: 45000 },
+    { id: 'CL-002', name: 'Speed Cargo', balance: 85000 },
+    { id: 'CL-003', name: 'National Logistics', balance: 0 },
+    { id: 'CL-004', name: 'Global Transport', balance: 0 },
+    { id: 'CL-005', name: 'Fast Track Cargo', balance: 32000 }
+  ];
+
   useEffect(() => {
-    loadInvoices();
+    loadData();
   }, []);
 
-  useEffect(() => {
-    filterInvoices();
-  }, [searchTerm, statusFilter, invoices]);
-
-  const loadInvoices = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      // Simulate API call
       setTimeout(() => {
         setInvoices(mockInvoices);
-        setFilteredInvoices(mockInvoices);
+        setClients(mockClients);
         setLoading(false);
       }, 1000);
     } catch (error) {
-      console.error('Error loading invoices:', error);
-      toast.error('Failed to load invoices');
+      console.error('Error loading billing data:', error);
+      toast.error('Failed to load billing data');
       setLoading(false);
     }
   };
 
-  const filterInvoices = () => {
-    let filtered = [...invoices];
-    
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(invoice =>
-        invoice.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.client.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    // Apply status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(invoice => invoice.status === statusFilter);
-    }
-    
-    setFilteredInvoices(filtered);
-  };
+  const filteredInvoices = invoices.filter(invoice => {
+    if (selectedClient !== 'all' && invoice.clientId !== selectedClient) return false;
+    if (statusFilter !== 'all' && invoice.status !== statusFilter) return false;
+    if (searchTerm && !invoice.id.toLowerCase().includes(searchTerm.toLowerCase()) && 
+        !invoice.clientName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  });
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'paid': return 'bg-emerald-100 text-emerald-700';
-      case 'partial': return 'bg-amber-100 text-amber-700';
-      case 'pending': return 'bg-blue-100 text-blue-700';
+      case 'partially_paid': return 'bg-blue-100 text-blue-700';
+      case 'pending': return 'bg-amber-100 text-amber-700';
       case 'overdue': return 'bg-red-100 text-red-700';
       default: return 'bg-slate-100 text-slate-700';
     }
@@ -168,354 +143,143 @@ const BillingView = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'paid': return <CheckCircle size={14} />;
-      case 'partial': return <AlertCircle size={14} />;
+      case 'partially_paid': return <CheckCircle size={14} />;
       case 'pending': return <Clock size={14} />;
       case 'overdue': return <AlertCircle size={14} />;
       default: return <Clock size={14} />;
     }
   };
 
-  const getDaysLeft = (dueDate) => {
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diffTime = due - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+  const calculateTotals = () => {
+    const totalInvoices = filteredInvoices.length;
+    const totalAmount = filteredInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalPaid = filteredInvoices.reduce((sum, inv) => sum + inv.paid, 0);
+    const totalPending = totalAmount - totalPaid;
+    
+    return { totalInvoices, totalAmount, totalPaid, totalPending };
   };
 
-  const handleViewInvoice = (invoice) => {
-    setSelectedInvoice(invoice);
-    setShowInvoiceModal(true);
+  const totals = calculateTotals();
+
+  const handleGenerateInvoice = () => {
+    toast.success('Invoice generation feature coming soon!');
+    setShowGenerateModal(false);
   };
 
-  const handleSendInvoice = async (invoiceId) => {
-    try {
-      // API call would go here
-      toast.success(`Invoice ${invoiceId} sent to client`);
-    } catch (error) {
-      toast.error('Failed to send invoice');
-    }
-  };
-
-  const handleMarkAsPaid = async (invoiceId) => {
-    try {
-      // API call would go here
-      setInvoices(invoices.map(inv => 
-        inv.id === invoiceId ? { ...inv, status: 'paid', paid: inv.amount } : inv
-      ));
-      toast.success('Invoice marked as paid');
-    } catch (error) {
-      toast.error('Failed to update invoice');
-    }
+  const handleSendReminder = (invoiceId) => {
+    toast.success(`Payment reminder sent for ${invoiceId}`);
   };
 
   const handleDownloadInvoice = (invoiceId) => {
-    // In production, this would generate PDF
-    toast.success(`Downloading invoice ${invoiceId}...`);
+    toast.success(`Invoice ${invoiceId} downloaded`);
   };
 
-  const InvoiceCard = ({ invoice }) => {
-    const daysLeft = getDaysLeft(invoice.dueDate);
-    const isOverdue = daysLeft < 0;
-    
-    return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-md transition-shadow">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <FileText size={18} className="text-blue-600" />
-              <h3 className="font-bold text-lg text-slate-800">{invoice.id}</h3>
-              <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${getStatusColor(invoice.status)}`}>
-                {getStatusIcon(invoice.status)}
-                {invoice.status.toUpperCase()}
-              </span>
-            </div>
-            <div className="flex items-center gap-4 text-slate-600">
-              <div className="flex items-center">
-                <User size={14} className="mr-1" />
-                <span>{invoice.client}</span>
-              </div>
-              <div className="flex items-center">
-                <Calendar size={14} className="mr-1" />
-                <span>{new Date(invoice.date).toLocaleDateString('en-PK')}</span>
-              </div>
-            </div>
+  const handlePrintInvoice = (invoiceId) => {
+    toast.success(`Printing invoice ${invoiceId}`);
+    window.print();
+  };
+
+  const InvoiceCard = ({ invoice }) => (
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-md transition-shadow">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-bold text-lg text-slate-800">{invoice.id}</h3>
+            <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${getStatusColor(invoice.status)}`}>
+              {getStatusIcon(invoice.status)}
+              {invoice.status.replace('_', ' ').toUpperCase()}
+            </span>
           </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-slate-900">
-              Rs {invoice.amount.toLocaleString()}
-            </p>
-            <p className="text-sm text-slate-500">
-              Due: {new Date(invoice.dueDate).toLocaleDateString('en-PK')}
-            </p>
+          <div className="flex items-center gap-2 text-slate-600">
+            <User size={14} />
+            <span className="font-medium">{invoice.clientName}</span>
+            <Calendar size={14} className="ml-4" />
+            <span>Due: {new Date(invoice.dueDate).toLocaleDateString('en-PK')}</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-bold text-slate-900">
+            Rs {invoice.amount.toLocaleString()}
+          </p>
+          <p className="text-sm text-slate-500">
+            Paid: Rs {invoice.paid.toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Progress bar */}
+        <div>
+          <div className="flex justify-between text-sm text-slate-600 mb-1">
+            <span>Payment Progress</span>
+            <span>{((invoice.paid / invoice.amount) * 100).toFixed(1)}%</span>
+          </div>
+          <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+              style={{ width: `${(invoice.paid / invoice.amount) * 100}%` }}
+            ></div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          {/* Payment Progress */}
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-slate-600">Payment Progress</span>
-              <span className="font-medium">
-                Rs {invoice.paid.toLocaleString()} / Rs {invoice.amount.toLocaleString()}
-              </span>
-            </div>
-            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-emerald-500 rounded-full transition-all"
-                style={{ width: `${(invoice.paid / invoice.amount) * 100}%` }}
-              ></div>
+        {/* Trip details */}
+        {invoice.trips.length > 0 && (
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <p className="text-xs text-slate-600 mb-2">Included Trips</p>
+            <div className="flex flex-wrap gap-2">
+              {invoice.trips.map(tripId => (
+                <span key={tripId} className="text-xs bg-white px-2 py-1 rounded border border-slate-200">
+                  {tripId}
+                </span>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Invoice Details */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <p className="text-xs text-slate-600 mb-1">Invoice Type</p>
-              <p className="font-medium text-slate-800">{invoice.type}</p>
-            </div>
-            <div className={`p-3 rounded-lg ${isOverdue ? 'bg-red-50' : 'bg-emerald-50'}`}>
-              <p className="text-xs text-slate-600 mb-1">Payment Due</p>
-              <p className={`font-medium ${isOverdue ? 'text-red-600' : 'text-emerald-600'}`}>
-                {isOverdue ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}
-              </p>
-            </div>
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+          <div className="text-sm text-slate-500">
+            Issued: {new Date(invoice.date).toLocaleDateString('en-PK')}
           </div>
-
-          {/* Trips */}
-          {invoice.trips && invoice.trips.length > 0 && (
-            <div className="p-3 bg-slate-50 rounded-lg">
-              <p className="text-xs text-slate-600 mb-2">Related Trips</p>
-              <div className="flex flex-wrap gap-2">
-                {invoice.trips.map(tripId => (
-                  <span key={tripId} className="text-xs bg-white px-2 py-1 rounded border border-slate-300">
-                    {tripId}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-            <div className="text-sm text-slate-500">
-              Balance: <span className="font-bold">Rs {(invoice.amount - invoice.paid).toLocaleString()}</span>
-            </div>
-            
-            <div className="flex items-center gap-2">
+          
+          <div className="flex items-center gap-2">
+            {invoice.status !== 'paid' && (
               <button
-                onClick={() => handleViewInvoice(invoice)}
-                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                title="View Invoice"
+                onClick={() => handleSendReminder(invoice.id)}
+                className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
               >
-                <Eye size={16} />
+                Send Reminder
               </button>
-              <button
-                onClick={() => handleDownloadInvoice(invoice.id)}
-                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                title="Download"
-              >
-                <Download size={16} />
-              </button>
-              <button
-                onClick={() => handleSendInvoice(invoice.id)}
-                className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg"
-                title="Send to Client"
-              >
-                <Send size={16} />
-              </button>
-              {invoice.status !== 'paid' && (
-                <button
-                  onClick={() => handleMarkAsPaid(invoice.id)}
-                  className="px-3 py-1 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors"
-                >
-                  Mark Paid
-                </button>
-              )}
-            </div>
+            )}
+            <button
+              onClick={() => handleDownloadInvoice(invoice.id)}
+              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+              title="Download"
+            >
+              <Download size={16} />
+            </button>
+            <button
+              onClick={() => handlePrintInvoice(invoice.id)}
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              title="Print"
+            >
+              <Printer size={16} />
+            </button>
+            <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Email">
+              <Mail size={16} />
+            </button>
           </div>
         </div>
       </div>
-    );
-  };
-
-  const InvoiceModal = () => {
-    if (!selectedInvoice) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-        <div className="bg-white rounded-2xl w-full max-w-4xl p-6 shadow-2xl">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-8 pb-6 border-b">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800">Invoice {selectedInvoice.id}</h2>
-              <p className="text-slate-600">
-                {selectedInvoice.client} • {selectedInvoice.type}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className={`inline-block px-3 py-1 rounded-full ${getStatusColor(selectedInvoice.status)}`}>
-                {selectedInvoice.status.toUpperCase()}
-              </div>
-              <button
-                onClick={() => setShowInvoiceModal(false)}
-                className="ml-4 p-2 hover:bg-slate-100 rounded-full"
-              >
-                <AlertCircle size={20} className="text-slate-500" />
-              </button>
-            </div>
-          </div>
-
-          {/* Invoice Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left Column */}
-            <div>
-              <div className="mb-6">
-                <h3 className="font-bold text-slate-700 mb-3">Bill From</h3>
-                <div className="bg-slate-50 p-4 rounded-xl">
-                  <p className="font-bold text-lg">{tenant?.company_name || 'FleetX Transport'}</p>
-                  <p className="text-slate-600">{tenant?.company_address || 'Lahore, Pakistan'}</p>
-                  <p className="text-slate-600">Phone: {tenant?.owner_phone || '+92 300 1234567'}</p>
-                  <p className="text-slate-600">Email: {tenant?.owner_email || 'billing@fleetx.com'}</p>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-bold text-slate-700 mb-3">Bill To</h3>
-                <div className="bg-blue-50 p-4 rounded-xl">
-                  <p className="font-bold text-lg">{selectedInvoice.client}</p>
-                  <p className="text-slate-600">Invoice Date: {new Date(selectedInvoice.date).toLocaleDateString()}</p>
-                  <p className="text-slate-600">Due Date: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column - Summary */}
-            <div>
-              <div className="bg-gradient-to-r from-blue-50 to-emerald-50 p-6 rounded-xl">
-                <h3 className="font-bold text-slate-700 mb-4">Invoice Summary</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Subtotal</span>
-                    <span className="font-bold">Rs {selectedInvoice.amount.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Tax (0%)</span>
-                    <span className="font-bold">Rs 0</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Discount</span>
-                    <span className="font-bold">Rs 0</span>
-                  </div>
-                  <div className="pt-3 border-t border-slate-200">
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total Amount</span>
-                      <span className="text-emerald-600">Rs {selectedInvoice.amount.toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between pt-2">
-                    <span className="text-slate-600">Amount Paid</span>
-                    <span className="font-bold text-emerald-600">Rs {selectedInvoice.paid.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between pt-2">
-                    <span className="text-slate-600">Balance Due</span>
-                    <span className="font-bold text-red-600">
-                      Rs {(selectedInvoice.amount - selectedInvoice.paid).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Line Items */}
-          <div className="mt-8">
-            <h3 className="font-bold text-slate-700 mb-4">Invoice Items</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100">
-                  <tr>
-                    <th className="p-3 text-left">Description</th>
-                    <th className="p-3 text-center">Quantity</th>
-                    <th className="p-3 text-right">Rate</th>
-                    <th className="p-3 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {selectedInvoice.items.map((item, index) => (
-                    <tr key={index}>
-                      <td className="p-3">{item.description}</td>
-                      <td className="p-3 text-center">{item.quantity}</td>
-                      <td className="p-3 text-right">Rs {item.rate.toLocaleString()}</td>
-                      <td className="p-3 text-right font-bold">Rs {item.amount.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                  <tr className="bg-slate-50 font-bold">
-                    <td colSpan="3" className="p-3 text-right">Total</td>
-                    <td className="p-3 text-right text-emerald-600">
-                      Rs {selectedInvoice.amount.toLocaleString()}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Payment Instructions */}
-          <div className="mt-8 p-4 bg-amber-50 rounded-xl">
-            <h4 className="font-bold text-amber-800 mb-2">Payment Instructions</h4>
-            <p className="text-sm text-amber-700">
-              Please make payment to the following account within {getDaysLeft(selectedInvoice.dueDate)} days:
-            </p>
-            <div className="mt-2 text-sm">
-              <p>Bank: Meezan Bank Limited</p>
-              <p>Account Title: {tenant?.company_name || 'FleetX Transport'}</p>
-              <p>Account No: 0123-45678901-2</p>
-              <p>IBAN: PK36MEZN0001234567890123</p>
-            </div>
-          </div>
-
-          {/* Footer Actions */}
-          <div className="mt-8 flex justify-between pt-6 border-t border-slate-200">
-            <div className="text-sm text-slate-500">
-              <p>Thank you for your business!</p>
-              <p className="mt-1">For any queries, contact {tenant?.owner_email || 'support@fleetx.com'}</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleDownloadInvoice(selectedInvoice.id)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 flex items-center gap-2"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
-              <button
-                onClick={() => handleSendInvoice(selectedInvoice.id)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Send size={16} />
-                Send to Client
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 flex items-center gap-2"
-              >
-                <Printer size={16} />
-                Print
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+    </div>
+  );
 
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Billing & Invoicing</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Billing & Invoices</h1>
             <p className="text-slate-600">Loading invoices...</p>
           </div>
         </div>
@@ -537,9 +301,9 @@ const BillingView = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Billing & Invoicing</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Billing & Invoices</h1>
           <p className="text-slate-600">
-            Manage invoices, payments, and billing
+            Manage invoices and track payments
             {tenant && <span className="ml-2 text-sm bg-slate-100 text-slate-700 px-2 py-1 rounded-full">
               {tenant.company_name}
             </span>}
@@ -547,79 +311,59 @@ const BillingView = () => {
         </div>
         
         <div className="flex items-center gap-3">
-          <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors flex items-center gap-2">
-            <Printer size={16} />
-            Print All
+          <button
+            onClick={() => setShowGenerateModal(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <Plus size={16} />
+            Generate Invoice
           </button>
           <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors flex items-center gap-2">
             <Download size={16} />
-            Export
-          </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
-            <Plus size={16} />
-            Create Invoice
+            Export All
           </button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <DollarSign size={20} className="text-blue-600" />
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl p-6">
+          <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-slate-600">Total Invoiced</p>
-              <p className="text-2xl font-bold text-slate-900">
-                Rs {invoices.reduce((sum, inv) => sum + inv.amount, 0).toLocaleString()}
-              </p>
+              <p className="text-blue-100 text-sm mb-1">Total Invoices</p>
+              <h3 className="text-2xl font-bold">{totals.totalInvoices}</h3>
             </div>
+            <FileText size={24} className="text-blue-200" />
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-2xl border border-slate-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-emerald-100 rounded-lg">
-              <CheckCircle size={20} className="text-emerald-600" />
-            </div>
+        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl p-6">
+          <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-slate-600">Amount Received</p>
-              <p className="text-2xl font-bold text-emerald-600">
-                Rs {invoices.reduce((sum, inv) => sum + inv.paid, 0).toLocaleString()}
-              </p>
+              <p className="text-emerald-100 text-sm mb-1">Total Amount</p>
+              <h3 className="text-2xl font-bold">Rs {totals.totalAmount.toLocaleString()}</h3>
             </div>
+            <DollarSign size={24} className="text-emerald-200" />
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-2xl border border-slate-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-amber-100 rounded-lg">
-              <Clock size={20} className="text-amber-600" />
-            </div>
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-2xl p-6">
+          <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-slate-600">Pending Payment</p>
-              <p className="text-2xl font-bold text-amber-600">
-                Rs {invoices.reduce((sum, inv) => sum + (inv.amount - inv.paid), 0).toLocaleString()}
-              </p>
+              <p className="text-amber-100 text-sm mb-1">Total Paid</p>
+              <h3 className="text-2xl font-bold">Rs {totals.totalPaid.toLocaleString()}</h3>
             </div>
+            <CheckCircle size={24} className="text-amber-200" />
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-2xl border border-slate-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <AlertCircle size={20} className="text-red-600" />
-            </div>
+        <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl p-6">
+          <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-slate-600">Overdue</p>
-              <p className="text-2xl font-bold text-red-600">
-                Rs {invoices
-                  .filter(inv => inv.status === 'overdue')
-                  .reduce((sum, inv) => sum + (inv.amount - inv.paid), 0)
-                  .toLocaleString()}
-              </p>
+              <p className="text-red-100 text-sm mb-1">Pending</p>
+              <h3 className="text-2xl font-bold">Rs {totals.totalPending.toLocaleString()}</h3>
             </div>
+            <Clock size={24} className="text-red-200" />
           </div>
         </div>
       </div>
@@ -633,12 +377,27 @@ const BillingView = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
               <input
                 type="text"
-                placeholder="Search invoices by ID, client, or amount..."
+                placeholder="Search invoices by ID or client name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+          </div>
+
+          {/* Client Filter */}
+          <div className="flex items-center gap-2">
+            <User size={20} className="text-slate-500" />
+            <select
+              value={selectedClient}
+              onChange={(e) => setSelectedClient(e.target.value)}
+              className="border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Clients</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>{client.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Status Filter */}
@@ -650,9 +409,9 @@ const BillingView = () => {
               className="border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="partial">Partial</option>
               <option value="paid">Paid</option>
+              <option value="partially_paid">Partially Paid</option>
+              <option value="pending">Pending</option>
               <option value="overdue">Overdue</option>
             </select>
           </div>
@@ -672,42 +431,144 @@ const BillingView = () => {
             <p className="text-slate-500 mb-6">
               {searchTerm ? 'No invoices match your search.' : 'You haven\'t created any invoices yet.'}
             </p>
-            <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
-              Create Your First Invoice
+            <button
+              onClick={() => setShowGenerateModal(true)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              Generate Your First Invoice
             </button>
           </div>
         )}
       </div>
 
-      {/* Invoice Modal */}
-      {showInvoiceModal && <InvoiceModal />}
-
-      {/* Collection Performance */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white">
-        <h3 className="text-lg font-bold mb-4">Collection Performance</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="text-center">
-            <div className="text-3xl font-bold mb-2">
-              {((invoices.reduce((sum, inv) => sum + inv.paid, 0) / 
-                 invoices.reduce((sum, inv) => sum + inv.amount, 0)) * 100 || 0).toFixed(1)}%
+      {/* Clients Receivables */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="p-6 border-b border-slate-200">
+          <h3 className="text-lg font-bold text-slate-800">Client Receivables</h3>
+          <p className="text-slate-600 text-sm">Pending payments from clients</p>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {clients.filter(c => c.balance > 0).map(client => (
+            <div key={client.id} className="p-4 hover:bg-slate-50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <User size={18} className="text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-slate-800">{client.name}</p>
+                  <p className="text-sm text-slate-500">Pending payment</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-red-600">Rs {client.balance.toLocaleString()}</p>
+                <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  Send Reminder
+                </button>
+              </div>
             </div>
-            <p className="text-slate-300">Collection Rate</p>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold mb-2">
-              {invoices.filter(inv => inv.status === 'overdue').length}
+          ))}
+          {clients.filter(c => c.balance > 0).length === 0 && (
+            <div className="p-8 text-center text-slate-500">
+              <CheckCircle size={32} className="text-emerald-400 mx-auto mb-3" />
+              <p>All clients are up to date with payments</p>
             </div>
-            <p className="text-slate-300">Overdue Invoices</p>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl font-bold mb-2">
-              {Math.round(invoices.reduce((sum, inv) => sum + (inv.amount - inv.paid), 0) / 
-                invoices.filter(inv => inv.status !== 'paid').length) || 0}
-            </div>
-            <p className="text-slate-300">Avg. Pending per Invoice</p>
-          </div>
+          )}
         </div>
       </div>
+
+      {/* Generate Invoice Modal */}
+      {showGenerateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800">Generate Invoice</h2>
+              <button
+                onClick={() => setShowGenerateModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-full"
+              >
+                <AlertCircle size={20} className="text-slate-500" />
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Client Selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Select Client
+                </label>
+                <select className="w-full p-3 border border-slate-300 rounded-xl">
+                  <option value="">Choose a client...</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>
+                      {client.name} {client.balance > 0 && `(Rs ${client.balance.toLocaleString()} pending)`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Trip Selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Select Trips to Include
+                </label>
+                <div className="space-y-2 max-h-60 overflow-y-auto p-2 border border-slate-300 rounded-xl">
+                  {mockInvoices.flatMap(inv => inv.trips).map((tripId, index) => (
+                    <div key={index} className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-lg">
+                      <input type="checkbox" id={`trip-${index}`} />
+                      <label htmlFor={`trip-${index}`} className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{tripId}</span>
+                          <span className="text-slate-500">Rs 45,000</span>
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additional Charges */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Detention Charges
+                  </label>
+                  <input 
+                    type="number" 
+                    placeholder="0" 
+                    className="w-full p-3 border border-slate-300 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    LOLO Charges
+                  </label>
+                  <input 
+                    type="number" 
+                    placeholder="0" 
+                    className="w-full p-3 border border-slate-300 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowGenerateModal(false)}
+                  className="flex-1 px-6 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGenerateInvoice}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Generate Invoice
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
