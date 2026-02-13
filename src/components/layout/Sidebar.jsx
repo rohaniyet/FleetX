@@ -1,99 +1,76 @@
-// src/components/layout/Sidebar.jsx
-
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Truck, 
-  Users, 
-  Package, 
+import { NavLink, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Truck,
   FileText,
   Banknote,
+  Users,
+  Package,
   TrendingUp,
-  LogOut,
-  Menu,
-  X
+  LogOut
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
-const Sidebar = ({ 
-  activeView, 
-  setActiveView, 
-  onLogout, 
-  mobile = false,
-  isMobileMenuOpen,
-  setIsMobileMenuOpen 
-}) => {
-  
+const Sidebar = () => {
+  const navigate = useNavigate();
+  const { signOut, tenant } = useAuth();
+
   const menuItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'order-manager', icon: FileText, label: 'Order Manager' },
-    { id: 'trip-manager', icon: Truck, label: 'Trip Manager' },
-    { id: 'payments', icon: Banknote, label: 'Payments' },
-    { id: 'accounts', icon: Users, label: 'Accounts' },
-    { id: 'store', icon: Package, label: 'Store/Inventory' },
-    { id: 'reports', icon: TrendingUp, label: 'Reports' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/orders', icon: FileText, label: 'Orders' },
+    { path: '/trips', icon: Truck, label: 'Trips' },
+    { path: '/billing', icon: Banknote, label: 'Billing' },
   ];
 
-  const handleItemClick = (id) => {
-    setActiveView(id);
-    if (mobile && setIsMobileMenuOpen) {
-      setIsMobileMenuOpen(false);
-    }
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
   };
 
   return (
-    <div className={`${mobile ? 'w-full pt-16' : 'w-64'} bg-slate-900 text-white h-full flex flex-col`}>
-      
-      {/* Mobile header agar mobile view hai */}
-      {mobile && (
-        <div className="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center fixed top-0 left-0 right-0 z-20">
-          <div className="flex items-center gap-2">
-            <Truck size={20} />
-            <span className="font-bold">FleetX</span>
+    <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col">
+
+      {/* Header */}
+      <div className="p-6 border-b border-slate-800">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Truck size={18} />
           </div>
-          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <span className="font-bold text-xl">FleetX</span>
         </div>
-      )}
-      
-      {/* Desktop header */}
-      {!mobile && (
-        <div className="p-6 border-b border-slate-800">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Truck size={18} />
-            </div>
-            <span className="font-bold text-xl tracking-tight">FleetX</span>
-          </div>
-          <p className="text-xs text-slate-500 pl-11">Azam Afridi Goods Transport</p>
-        </div>
-      )}
-      
-      {/* Menu items */}
-      <nav className="flex-1 p-4 space-y-1">
+        <p className="text-xs text-slate-500">
+          {tenant?.company_name || 'Transport Company'}
+        </p>
+      </div>
+
+      {/* Menu */}
+      <nav className="flex-1 p-4 space-y-2">
         {menuItems.map(item => (
-          <button
-            key={item.id}
-            onClick={() => handleItemClick(item.id)}
-            className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
-              activeView === item.id 
-                ? 'bg-blue-600 shadow-lg shadow-blue-900/50' 
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={({ isActive }) =>
+              `flex items-center gap-3 p-3 rounded-xl transition ${
+                isActive
+                  ? 'bg-blue-600'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`
+            }
           >
             <item.icon size={18} />
-            <span className="font-medium text-sm">{item.label}</span>
-          </button>
+            <span className="text-sm font-medium">{item.label}</span>
+          </NavLink>
         ))}
       </nav>
-      
-      {/* Logout button */}
+
+      {/* Logout */}
       <button
-        onClick={onLogout}
-        className="m-4 flex items-center gap-3 p-3 rounded-xl transition-all text-red-400 hover:bg-red-900/30 hover:text-red-300"
+        onClick={handleLogout}
+        className="m-4 flex items-center gap-3 p-3 rounded-xl text-red-400 hover:bg-red-900/30"
       >
         <LogOut size={18} />
-        <span className="font-medium text-sm">Logout</span>
+        <span className="text-sm font-medium">Logout</span>
       </button>
     </div>
   );
