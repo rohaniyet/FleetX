@@ -8,6 +8,7 @@ import {
   Users,
   Package,
   TrendingUp,
+  CreditCard,
   LogOut
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -18,9 +19,13 @@ const Sidebar = () => {
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/orders', icon: FileText, label: 'Orders' },
-    { path: '/trips', icon: Truck, label: 'Trips' },
-    { path: '/billing', icon: Banknote, label: 'Billing' },
+    { path: '/orders', icon: FileText, label: 'Order Manager' },
+    { path: '/trips', icon: Truck, label: 'Trip Manager' },
+    { path: '/billing', icon: CreditCard, label: 'Billing View' },
+    { path: '/accounts', icon: Users, label: 'Accounts' },
+    { path: '/reports', icon: TrendingUp, label: 'Reports' },
+    { path: '/store', icon: Package, label: 'Store' },
+    { path: '/payments', icon: Banknote, label: 'Payments' },
   ];
 
   const handleLogout = async () => {
@@ -44,7 +49,7 @@ const Sidebar = () => {
         </p>
       </div>
 
-      {/* Menu */}
+      {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
         {menuItems.map(item => (
           <NavLink
