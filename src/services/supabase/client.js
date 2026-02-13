@@ -1,14 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
 /* ---------------------------------------------------
-   ENV CONFIGURATION (VITE SAFE + DEBUG FRIENDLY)
+   ENV CONFIGURATION (VITE SAFE)
 --------------------------------------------------- */
 
-const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL || '';
-
-const SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error('❌ Supabase ENV Missing:', {
@@ -42,24 +39,14 @@ export const supabase = createClient(
 );
 
 /* ---------------------------------------------------
-   TEST CONNECTION
+   TEST CONNECTION (AUTH BASED – NO TABLE DEPENDENCY)
 --------------------------------------------------- */
 
 export const testConnection = async () => {
   try {
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('*')
-      .limit(1);
+    const { data, error } = await supabase.auth.getSession();
 
     if (error) {
-      if (error.code === '42P01') {
-        return {
-          success: true,
-          message: 'Connected (tables not created yet)'
-        };
-      }
-
       return {
         success: false,
         message: error.message
@@ -68,7 +55,7 @@ export const testConnection = async () => {
 
     return {
       success: true,
-      message: 'Connected successfully',
+      message: 'Supabase connected successfully',
       data
     };
   } catch (error) {
