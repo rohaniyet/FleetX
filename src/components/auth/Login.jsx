@@ -223,10 +223,10 @@ const Login = () => {
 
         {/* App Info */}
         <div className="mt-8 text-center">
-          <p className="text-sm text-slate-400">
-            FleetX v{window.publicConfig?.APP_VERSION || '2.0.0'} • 
-            {window.publicConfig?.COMPANY_NAME || 'Azam Afridi Goods Transport'}
-          </p>
+          <p className="text-sm text-gray-400 mt-8">
+  Developed by <span className="font-semibold text-white">Waqas Gilani</span>
+</p>
+
           <p className="text-xs text-slate-500 mt-2">
             Need help? {window.publicConfig?.SUPPORT.PHONE} • {window.publicConfig?.SUPPORT.EMAIL}
           </p>
