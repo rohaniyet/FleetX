@@ -1,75 +1,43 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { useAuth } from './context/AuthContext';
+import { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 
-import Sidebar from './components/layout/Sidebar.jsx';
-import Login from './components/auth/Login.jsx';
-import ProtectedRoute from './components/auth/ProtectedRoute.jsx';
+const AuthContext = createContext();
 
-import Dashboard from './modules/dashboard/Dashboard';
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-const LoadingScreen = () => (
-  <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-    <div className="text-center space-y-3">
-      <h1 className="text-3xl font-bold tracking-wide">FleetX ERP</h1>
-      <p className="text-slate-400">Loading secure workspace...</p>
-    </div>
-  </div>
-);
+  useEffect(() => {
+    const getSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user ?? null);
 
-function App() {
-  const { user, loading } = useAuth();
+      if (data.session?.user) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.session.user.id)
+          .single();
 
-  if (loading) return <LoadingScreen />;
+        setRole(roleData?.role);
+      }
 
-  const Layout = ({ children }) => (
-    <div className="min-h-screen flex bg-slate-100">
-      <aside className="w-64 hidden md:block bg-slate-900">
-        <Sidebar />
-      </aside>
+      setLoading(false);
+    };
 
-      <main className="flex-1 p-6 bg-gradient-to-br from-slate-50 to-slate-100">
-        {children}
-      </main>
-    </div>
-  );
+    getSession();
+
+    supabase.auth.onAuthStateChange(() => {
+      getSession();
+    });
+  }, []);
 
   return (
-    <>
-      <Router>
-        <Routes>
-          import ResetPassword from "./pages/ResetPassword";
-
-<Route path="/reset-password" element={<ResetPassword />} />
-
-          {/* LOGIN ONLY */}
-          <Route
-            path="/login"
-            element={!user ? <Login /> : <Navigate to="/dashboard" />}
-          />
-
-          {/* MASTER AREA */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Default */}
-          <Route path="*" element={<Navigate to="/login" />} />
-
-        </Routes>
-      </Router>
-
-      <Toaster position="top-right" />
-    </>
+    <AuthContext.Provider value={{ user, role, loading }}>
+      {children}
+    </AuthContext.Provider>
   );
-}
+};
 
-export default App;
+export const useAuth = () => useContext(AuthContext);
