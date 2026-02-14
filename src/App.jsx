@@ -1,104 +1,55 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
-import { Toaster } from "react-hot-toast";
-
-// Pages
-import Login from "./components/auth/Login";
-import MasterDashboard from "./modules/master/MasterDashboard";
-import Dashboard from "./modules/dashboard/Dashboard";
-
-// Layout
 import Sidebar from "./components/layout/Sidebar";
 
-const LoadingScreen = () => (
-  <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-    <div className="text-center animate-pulse">
-      <h1 className="text-3xl font-bold mb-2">FleetX ERP</h1>
-      <p className="text-slate-400">Loading secure workspace...</p>
-    </div>
-  </div>
-);
+import MasterDashboard from "./pages/MasterDashboard";
+import Dashboard from "./modules/dashboard/Dashboard";
+import OrderManager from "./modules/orders/OrderManager";
+import TripManager from "./modules/trips/TripManager";
+import BillingView from "./modules/billing/BillingView";
 
-function AppLayout({ children }) {
-  return (
-    <div className="min-h-screen flex bg-slate-100">
-      <aside className="hidden md:block w-64">
-        <Sidebar />
-      </aside>
-
-      <main className="flex-1 p-6 md:p-8">
-        {children}
-      </main>
-    </div>
-  );
-}
+import Login from "./pages/Login";
 
 function App() {
   const { user, role, loading } = useAuth();
 
-  if (loading) return <LoadingScreen />;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+        <h1 className="text-2xl font-bold">Loading secure workspace...</h1>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
-    <>
-      <Router>
-        <Routes>
+    <Router>
+      <div className="flex min-h-screen bg-slate-100">
+        <Sidebar />
 
-          {/* Login */}
-          <Route
-            path="/login"
-            element={!user ? <Login /> : <Navigate to="/" />}
-          />
-
-          {/* Root Redirect Logic */}
-          <Route
-            path="/"
-            element={
-              !user ? (
-                <Navigate to="/login" />
-              ) : role === "master_admin" ? (
-                <Navigate to="/master" />
-              ) : (
-                <Navigate to="/dashboard" />
-              )
-            }
-          />
-
-          {/* Master Admin Panel */}
-          <Route
-            path="/master"
-            element={
-              user && role === "master_admin" ? (
-                <AppLayout>
-                  <MasterDashboard />
-                </AppLayout>
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-
-          {/* Transport Company Dashboard */}
-          <Route
-            path="/dashboard"
-            element={
-              user && role !== "master_admin" ? (
-                <AppLayout>
-                  <Dashboard />
-                </AppLayout>
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-
-          {/* Catch All */}
-          <Route path="*" element={<Navigate to="/" />} />
-
-        </Routes>
-      </Router>
-
-      <Toaster position="top-right" />
-    </>
+        <div className="flex-1 p-6">
+          <Routes>
+            {role === "master_admin" ? (
+              <>
+                <Route path="/" element={<MasterDashboard />} />
+                <Route path="*" element={<Navigate to="/" />} />
+              </>
+            ) : (
+              <>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/orders" element={<OrderManager />} />
+                <Route path="/trips" element={<TripManager />} />
+                <Route path="/billing" element={<BillingView />} />
+                <Route path="*" element={<Navigate to="/" />} />
+              </>
+            )}
+          </Routes>
+        </div>
+      </div>
+    </Router>
   );
 }
 
