@@ -9,33 +9,44 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const getSession = async () => {
+    const init = async () => {
       const { data } = await supabase.auth.getSession();
-      setUser(data.session?.user ?? null);
+      const sessionUser = data?.session?.user ?? null;
+      setUser(sessionUser);
 
-      if (data.session?.user) {
+      if (sessionUser) {
         const { data: roleData } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", data.session.user.id)
+          .eq("user_id", sessionUser.id)
           .single();
 
-        setRole(roleData?.role);
+        setRole(roleData?.role ?? "user");
       }
 
       setLoading(false);
     };
 
-    getSession();
+    init();
 
-    supabase.auth.onAuthStateChange(() => {
-      getSession();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      init();
     });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
   return (
     <AuthContext.Provider value={{ user, role, loading }}>
-      {children}
+      {loading ? (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 border-opacity-50"></div>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };
