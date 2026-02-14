@@ -1,238 +1,153 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../services/supabase/client';
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { supabase } from '../services/supabase/client'
 
-const AuthContext = createContext({});
+const AuthContext = createContext()
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => useContext(AuthContext)
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [tenant, setTenant] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState(null);
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [tenant, setTenant] = useState(null)
+  const [loading, setLoading] = useState(true)
 
+  // =============================
+  // INIT SESSION
+  // =============================
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadTenantData(session.user);
-      }
-      setLoading(false);
-    });
+    const init = async () => {
+      const { data } = await supabase.auth.getSession()
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
+      if (data?.session?.user) {
+        setUser(data.session.user)
+        await loadProfile(data.session.user.id)
+      }
+
+      setLoading(false)
+    }
+
+    init()
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_, session) => {
         if (session?.user) {
-          await loadTenantData(session.user);
+          setUser(session.user)
+          await loadProfile(session.user.id)
         } else {
-          setTenant(null);
+          setUser(null)
+          setProfile(null)
+          setTenant(null)
         }
-        
-        setLoading(false);
+        setLoading(false)
       }
-    );
+    )
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const loadTenantData = async (user) => {
-    try {
-      // Get user profile from profiles table
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('tenant_id, user_role, full_name, avatar_url')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) {
-        console.warn('Profile not found, creating default...');
-        // Create default profile if not exists
-        await createDefaultProfile(user);
-        return;
-      }
-
-      if (profile?.tenant_id) {
-        // Get tenant details
-        const { data: tenantData, error: tenantError } = await supabase
-          .from('tenants')
-          .select('*')
-          .eq('tenant_id', profile.tenant_id)
-          .single();
-
-        if (tenantError) {
-          console.error('Tenant not found:', tenantError);
-          return;
-        }
-
-        setTenant({
-          ...tenantData,
-          role: profile.user_role || 'admin',
-          userProfile: profile
-        });
-      }
-    } catch (error) {
-      console.error('Error loading tenant data:', error);
+    return () => {
+      listener?.subscription?.unsubscribe()
     }
-  };
+  }, [])
 
-  const createDefaultProfile = async (user) => {
-    const tenantId = `tenant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    try {
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          tenant_id: tenantId,
-          username: user.email?.split('@')[0] || 'user',
-          full_name: user.user_metadata?.full_name || '',
-          user_role: 'admin'
-        });
+  // =============================
+  // LOAD PROFILE
+  // =============================
+  const loadProfile = async (userId) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
 
-      if (profileError) throw profileError;
-
-      // Create tenant
-      const { error: tenantError } = await supabase
-        .from('tenants')
-        .insert({
-          tenant_id: tenantId,
-          company_name: `${user.user_metadata?.full_name || 'My'} Transport`,
-          owner_name: user.user_metadata?.full_name || user.email,
-          owner_email: user.email,
-          subscription_plan: 'free_trial',
-          trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        });
-
-      if (tenantError) throw tenantError;
-
-      // Reload tenant data
-      await loadTenantData(user);
-    } catch (error) {
-      console.error('Error creating default profile:', error);
+    if (error || !data) {
+      console.warn('Profile not found')
+      return
     }
-  };
 
-  const signUp = async (email, password, userData = {}) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: userData
-        }
-      });
+    setProfile(data)
 
-      if (error) throw error;
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: error.message };
+    if (data.tenant_id) {
+      await loadTenant(data.tenant_id)
     }
-  };
+  }
 
+  // =============================
+  // LOAD TENANT
+  // =============================
+  const loadTenant = async (tenantId) => {
+    const { data } = await supabase
+      .from('tenants')
+      .select('*')
+      .eq('id', tenantId)
+      .single()
+
+    if (data) {
+      setTenant(data)
+    }
+  }
+
+  // =============================
+  // LOGIN
+  // =============================
   const signIn = async (email, password) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
 
-      if (error) throw error;
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
+    if (error) return { success: false, error: error.message }
 
+    return { success: true }
+  }
+
+  // =============================
+  // LOGOUT
+  // =============================
   const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null);
-      setTenant(null);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    setTenant(null)
+  }
 
-  const createTenant = async (tenantData) => {
-    try {
-      if (!user) throw new Error('User must be logged in');
+  // =============================
+  // CREATE NEW TENANT (MASTER ONLY)
+  // =============================
+  const createTenant = async (companyName) => {
+    if (!isMasterAdmin) return { success: false }
 
-      const tenantId = `tenant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const { error } = await supabase
-        .from('tenants')
-        .insert({
-          tenant_id: tenantId,
-          ...tenantData,
-          owner_email: user.email,
-          subscription_plan: 'free_trial',
-          trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        });
+    const { data, error } = await supabase
+      .from('tenants')
+      .insert({
+        company_name: companyName,
+        accounting_mode: 'standard',
+        inventory_method: 'fifo',
+        pra_enabled: false,
+        base_currency: 'PKR'
+      })
+      .select()
+      .single()
 
-      if (error) throw error;
+    if (error) return { success: false, error: error.message }
 
-      // Update profile with tenant_id
-      await supabase
-        .from('profiles')
-        .update({ tenant_id: tenantId })
-        .eq('id', user.id);
-
-      // Reload tenant data
-      await loadTenantData(user);
-
-      return { success: true, tenantId };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
-
-  const updateProfile = async (updates) => {
-    try {
-      if (!user) throw new Error('User must be logged in');
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      // Reload data
-      await loadTenantData(user);
-
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
+    return { success: true, tenant: data }
+  }
 
   const value = {
     user,
+    profile,
     tenant,
-    session,
     loading,
-    signUp,
+
     signIn,
     signOut,
     createTenant,
-    updateProfile,
+
     isAuthenticated: !!user,
-    isAdmin: tenant?.role === 'admin',
-    isSuperAdmin: tenant?.role === 'super_admin'
-  };
+    isMasterAdmin: profile?.role === 'master_admin'
+  }
 
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
