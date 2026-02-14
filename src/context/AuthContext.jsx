@@ -5,48 +5,47 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null);
+  const [tenant, setTenant] = useState(null);
+  const [branch, setBranch] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const init = async () => {
+    const loadUserData = async () => {
       const { data } = await supabase.auth.getSession();
-      const sessionUser = data?.session?.user ?? null;
-      setUser(sessionUser);
+      const sessionUser = data.session?.user;
 
-      if (sessionUser) {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", sessionUser.id)
-          .single();
-
-        setRole(roleData?.role ?? "user");
+      if (!sessionUser) {
+        setLoading(false);
+        return;
       }
 
+      setUser(sessionUser);
+
+      // Get tenant
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("*")
+        .limit(1)
+        .single();
+
+      // Get branch
+      const { data: branchData } = await supabase
+        .from("branches")
+        .select("*")
+        .limit(1)
+        .single();
+
+      setTenant(tenantData);
+      setBranch(branchData);
       setLoading(false);
     };
 
-    init();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      init();
-    });
-
-    return () => {
-      listener?.subscription?.unsubscribe();
-    };
+    loadUserData();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, role, loading }}>
-      {loading ? (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500 border-opacity-50"></div>
-        </div>
-      ) : (
-        children
-      )}
+    <AuthContext.Provider value={{ user, tenant, branch, loading }}>
+      {children}
     </AuthContext.Provider>
   );
 };
