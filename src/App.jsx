@@ -39,6 +39,9 @@ function App() {
     <>
       <Router>
         <Routes>
+          import ResetPassword from "./pages/ResetPassword";
+
+<Route path="/reset-password" element={<ResetPassword />} />
 
           {/* LOGIN ONLY */}
           <Route
