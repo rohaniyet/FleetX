@@ -8,7 +8,7 @@ import OrderManager from "./modules/orders/OrderManager";
 import TripManager from "./modules/trips/TripManager";
 import BillingView from "./modules/billing/BillingView";
 
-import Login from "./pages/Login";
+import Login from "./components/auth/Login";
 
 function App() {
   const { user, role, loading } = useAuth();
