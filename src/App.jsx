@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { useAuth } from "./context/AuthContext";
 import Sidebar from "./components/layout/Sidebar";
 
-import MasterDashboard from "./pages/MasterDashboard";
+import MasterDashboard from "./modules/dashboard/MasterDashboard";
 import Dashboard from "./modules/dashboard/Dashboard";
 import OrderManager from "./modules/orders/OrderManager";
 import TripManager from "./modules/trips/TripManager";
