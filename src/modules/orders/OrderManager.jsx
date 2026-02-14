@@ -1,56 +1,69 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
+import { Plus, Search, Truck, MapPin } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
 const OrderManager = () => {
   const { tenant } = useAuth();
-
   const [orders, setOrders] = useState([]);
-  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
 
   const [form, setForm] = useState({
     client_id: "",
     from_location: "",
     to_location: "",
     weight: "",
-    container_type: "",
-    single: 0,
+    container_type: "20ft",
+    single: 1,
     double: 0,
-    order_type: "local",
-    billing_type: "company",
+    order_type: "Export",
+    billing_type: "per_trip",
     rate: ""
   });
 
+  const [clients, setClients] = useState([]);
+
   useEffect(() => {
     if (tenant) {
-      loadData();
+      loadOrders();
+      loadClients();
     }
   }, [tenant]);
 
-  const loadData = async () => {
+  const loadOrders = async () => {
     setLoading(true);
 
-    const { data: orderData } = await supabase
+    const { data, error } = await supabase
       .from("orders")
-      .select("*")
+      .select("*, clients(name)")
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false });
 
-    const { data: clientData } = await supabase
+    if (error) {
+      toast.error(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setOrders(data || []);
+    setLoading(false);
+  };
+
+  const loadClients = async () => {
+    const { data } = await supabase
       .from("clients")
       .select("id,name")
       .eq("tenant_id", tenant.id);
 
-    setOrders(orderData || []);
-    setClients(clientData || []);
-    setLoading(false);
+    setClients(data || []);
   };
 
   const handleCreateOrder = async () => {
-    if (!form.client_id || !form.rate) {
-      toast.error("Client and Rate required");
+    if (!form.client_id || !form.from_location || !form.to_location || !form.rate) {
+      toast.error("Fill all required fields");
       return;
     }
 
@@ -75,166 +88,129 @@ const OrderManager = () => {
     }
 
     toast.success("Order Created");
-    setForm({
-      client_id: "",
-      from_location: "",
-      to_location: "",
-      weight: "",
-      container_type: "",
-      single: 0,
-      double: 0,
-      order_type: "local",
-      billing_type: "company",
-      rate: ""
-    });
-
-    loadData();
+    setShowModal(false);
+    loadOrders();
   };
 
-  const confirmOrder = async (id) => {
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: "confirmed" })
-      .eq("id", id);
+  const filtered = orders.filter((o) =>
+    o.clients?.name?.toLowerCase().includes(search.toLowerCase())
+  );
 
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("Order Confirmed");
-    loadData();
-  };
-
-  if (loading) return <div>Loading Orders...</div>;
+  if (loading) return <div className="p-8 text-center">Loading Orders...</div>;
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-8 space-y-6">
 
-      <h1 className="text-2xl font-bold">Orders</h1>
-
-      {/* Create Order Form */}
-      <div className="bg-white p-6 rounded-xl shadow space-y-4">
-
-        <h2 className="text-lg font-semibold">Create Order</h2>
-
-        <select
-          value={form.client_id}
-          onChange={(e) =>
-            setForm({ ...form, client_id: e.target.value })
-          }
-          className="border p-2 w-full"
-        >
-          <option value="">Select Client</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          placeholder="From"
-          value={form.from_location}
-          onChange={(e) =>
-            setForm({ ...form, from_location: e.target.value })
-          }
-          className="border p-2 w-full"
-        />
-
-        <input
-          placeholder="To"
-          value={form.to_location}
-          onChange={(e) =>
-            setForm({ ...form, to_location: e.target.value })
-          }
-          className="border p-2 w-full"
-        />
-
-        <input
-          placeholder="Weight"
-          value={form.weight}
-          onChange={(e) =>
-            setForm({ ...form, weight: e.target.value })
-          }
-          className="border p-2 w-full"
-        />
-
-        <input
-          placeholder="Container Type"
-          value={form.container_type}
-          onChange={(e) =>
-            setForm({ ...form, container_type: e.target.value })
-          }
-          className="border p-2 w-full"
-        />
-
-        <input
-          placeholder="Single Vehicles"
-          type="number"
-          value={form.single}
-          onChange={(e) =>
-            setForm({ ...form, single: e.target.value })
-          }
-          className="border p-2 w-full"
-        />
-
-        <input
-          placeholder="Double Vehicles"
-          type="number"
-          value={form.double}
-          onChange={(e) =>
-            setForm({ ...form, double: e.target.value })
-          }
-          className="border p-2 w-full"
-        />
-
-        <input
-          placeholder="Rate"
-          type="number"
-          value={form.rate}
-          onChange={(e) =>
-            setForm({ ...form, rate: e.target.value })
-          }
-          className="border p-2 w-full"
-        />
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Order Manager</h1>
 
         <button
-          onClick={handleCreateOrder}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          onClick={() => setShowModal(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex gap-2 items-center"
         >
-          Create Order
+          <Plus size={16} /> New Order
         </button>
       </div>
 
-      {/* Orders List */}
-      <div className="bg-white p-6 rounded-xl shadow">
-        <h2 className="text-lg font-semibold mb-4">Order List</h2>
+      <input
+        placeholder="Search client..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full border p-3 rounded-lg"
+      />
 
-        {orders.length === 0 && <p>No Orders Found</p>}
-
-        {orders.map((o) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {filtered.map((order) => (
           <div
-            key={o.id}
-            className="border-b py-3 flex justify-between items-center"
+            key={order.id}
+            className="bg-white p-5 rounded-xl shadow hover:shadow-lg transition"
           >
-            <div>
-              <p className="font-bold">{o.from_location} → {o.to_location}</p>
-              <p>Rate: Rs {o.rate}</p>
-              <p>Status: {o.status}</p>
+            <div className="flex justify-between mb-3">
+              <div>
+                <h2 className="font-bold text-lg">
+                  {order.clients?.name}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {order.from_location} → {order.to_location}
+                </p>
+              </div>
+              <div className="text-right font-bold text-blue-600">
+                Rs {order.rate}
+              </div>
             </div>
 
-            {o.status === "draft" && (
-              <button
-                onClick={() => confirmOrder(o.id)}
-                className="bg-green-600 text-white px-3 py-1 rounded"
-              >
-                Confirm
-              </button>
-            )}
+            <div className="text-sm text-gray-600 flex gap-4">
+              <div className="flex items-center gap-1">
+                <Truck size={14} /> S:{order.single_vehicle_count}
+              </div>
+              <div className="flex items-center gap-1">
+                <MapPin size={14} /> {order.order_type}
+              </div>
+            </div>
           </div>
         ))}
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-full max-w-lg space-y-4">
+
+            <h2 className="text-xl font-bold">Create Order</h2>
+
+            <select
+              onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+              className="w-full border p-3 rounded"
+            >
+              <option>Select Client</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+
+            <input
+              placeholder="From Location"
+              onChange={(e) => setForm({ ...form, from_location: e.target.value })}
+              className="w-full border p-3 rounded"
+            />
+
+            <input
+              placeholder="To Location"
+              onChange={(e) => setForm({ ...form, to_location: e.target.value })}
+              className="w-full border p-3 rounded"
+            />
+
+            <input
+              placeholder="Weight"
+              type="number"
+              onChange={(e) => setForm({ ...form, weight: e.target.value })}
+              className="w-full border p-3 rounded"
+            />
+
+            <input
+              placeholder="Rate"
+              type="number"
+              onChange={(e) => setForm({ ...form, rate: e.target.value })}
+              className="w-full border p-3 rounded"
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleCreateOrder}
+                className="flex-1 bg-blue-600 text-white py-2 rounded"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 bg-gray-200 py-2 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
