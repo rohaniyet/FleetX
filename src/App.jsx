@@ -1,56 +1,42 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import Login from "./components/auth/Login";
 import Sidebar from "./components/layout/Sidebar";
-
-import MasterDashboard from "./modules/dashboard/MasterDashboard";
 import Dashboard from "./modules/dashboard/Dashboard";
 import OrderManager from "./modules/orders/OrderManager";
 import TripManager from "./modules/trips/TripManager";
 import BillingView from "./modules/billing/BillingView";
 
-import Login from "./components/auth/Login";
-
-function App() {
-  const { user, role, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-        <h1 className="text-2xl font-bold">Loading secure workspace...</h1>
-      </div>
-    );
-  }
+export default function App() {
+  const { user, role } = useAuth();
 
   if (!user) {
     return <Login />;
   }
 
+  if (role === "master_admin") {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white p-10">
+        <h1 className="text-4xl font-bold">Master Admin Panel</h1>
+      </div>
+    );
+  }
+
   return (
-    <Router>
-      <div className="flex min-h-screen bg-slate-100">
+    <BrowserRouter>
+      <div className="flex">
         <Sidebar />
 
-        <div className="flex-1 p-6">
+        <div className="flex-1 bg-slate-100 min-h-screen p-8">
           <Routes>
-            {role === "master_admin" ? (
-              <>
-                <Route path="/" element={<MasterDashboard />} />
-                <Route path="*" element={<Navigate to="/" />} />
-              </>
-            ) : (
-              <>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/orders" element={<OrderManager />} />
-                <Route path="/trips" element={<TripManager />} />
-                <Route path="/billing" element={<BillingView />} />
-                <Route path="*" element={<Navigate to="/" />} />
-              </>
-            )}
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/orders" element={<OrderManager />} />
+            <Route path="/trips" element={<TripManager />} />
+            <Route path="/billing" element={<BillingView />} />
           </Routes>
         </div>
       </div>
-    </Router>
+    </BrowserRouter>
   );
 }
-
-export default App;
